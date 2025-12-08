@@ -1,0 +1,581 @@
+// ============================================
+// JAVASCRIPT UTILITIES (Include in Index.html)
+// ============================================
+
+let currentVisitId = null;
+let dropdownOptions = {};
+let allAccounts = [];
+let cachedHistory = {}; 
+let cachedVisitDetails = {};
+let searchResults = [];
+let sessionStartTime = Date.now();
+
+document.addEventListener('DOMContentLoaded', () => {
+  initializeApp();
+  setInterval(updateClocks, 1000);
+  updateClocks();
+  
+  const savedTheme = localStorage.getItem('ar_theme') || 'theme-blue';
+  const savedMode = localStorage.getItem('ar_mode') || 'dark';
+  setTheme(savedTheme);
+  setMode(savedMode);
+  
+  trackActivity('APP_INIT', 'Application started');
+});
+
+async function initializeApp() {
+  try {
+    await Promise.all([
+      loadCurrentUser(), 
+      loadDropdownOptions(), 
+      loadStatistics(), 
+      loadAssignedAccounts()
+    ]);
+    trackActivity('APP_LOADED', 'All data loaded successfully');
+  } catch(e) { 
+    showError('Init Failed: ' + e.message); 
+    trackActivity('APP_INIT_ERROR', e.message);
+  }
+}
+
+function trackActivity(action, details, visitId = '') {
+  const duration = Date.now() - sessionStartTime;
+  const browser = navigator.userAgent;
+  const page = 'Index';
+  
+  // Enhanced tracking with more context
+  const trackingData = {
+    action: action,
+    details: typeof details === 'string' ? details : JSON.stringify(details),
+    duration: duration + 'ms',
+    page: page,
+    visitId: visitId || currentVisitId || '',
+    userAgent: browser,
+    timestamp: new Date().toISOString()
+  };
+  
+  // Send to backend for logging
+  if (typeof google !== 'undefined' && google.script && google.script.run) {
+    google.script.run
+      .withFailureHandler(err => console.error('Tracking error:', err))
+      .logActivity(action, trackingData, 'SUCCESS');
+  }
+  
+  console.log(`[Activity] ${action}: ${details} (${duration}ms)`);
+}
+
+function loadCurrentUser() { 
+  google.script.run.withSuccessHandler(u => {
+    document.getElementById('currentUser').textContent = u.name;
+    trackActivity('USER_LOADED', u.email);
+  }).getCurrentUser(); 
+}
+
+function loadDropdownOptions() { 
+  google.script.run.withSuccessHandler(o => { 
+    dropdownOptions = o; 
+    populateDropdowns(); 
+  }).getDropdownOptions(); 
+}
+
+function populateDropdowns() {
+  const setHtml = (id, opts) => {
+    const el = document.getElementById(id);
+    if (el && opts) el.innerHTML = opts.map(s => `<option>${s}</option>`).join('');
+  };
+  setHtml('source', dropdownOptions.source);
+  setHtml('statusCode', dropdownOptions.statusCode);
+  setHtml('actionCode', dropdownOptions.actionCode);
+  const assignedTo = document.getElementById('assignedTo');
+  if (assignedTo) {
+    assignedTo.innerHTML = '<option>AR</option>' + 
+      (dropdownOptions.assignedTo || []).map(s=>`<option>${s}</option>`).join('');
+  }
+}
+
+function loadStatistics() {
+  google.script.run.withSuccessHandler(s => {
+    document.getElementById('statAssigned').textContent = s.totalAssigned;
+    document.getElementById('statWorked').textContent = s.totalWorked;
+    document.getElementById('statPending').textContent = s.totalPending;
+    document.getElementById('statNonWorkable').textContent = s.totalNonWorkable;
+    document.getElementById('statTotalClaims').textContent = s.totalAccounts || 0;
+    document.getElementById('statMyClaims').textContent = s.totalAssigned;
+  }).getAccountStatistics();
+}
+
+function toggleStatsView(view) {
+  const countsView = document.getElementById('statsCountsView');
+  const claimsView = document.getElementById('statsClaimsView');
+  const btnCounts = document.getElementById('btnViewCounts');
+  const btnClaims = document.getElementById('btnViewClaims');
+  
+  if (view === 'counts') {
+    countsView.classList.remove('hidden');
+    claimsView.classList.add('hidden');
+    btnCounts.classList.add('bg-primary', 'text-white');
+    btnCounts.classList.remove('bg-gray-200', 'dark:bg-slate-700', 'text-gray-700', 'dark:text-gray-300');
+    btnClaims.classList.remove('bg-primary', 'text-white');
+    btnClaims.classList.add('bg-gray-200', 'dark:bg-slate-700', 'text-gray-700', 'dark:text-gray-300');
+  } else {
+    countsView.classList.add('hidden');
+    claimsView.classList.remove('hidden');
+    btnClaims.classList.add('bg-primary', 'text-white');
+    btnClaims.classList.remove('bg-gray-200', 'dark:bg-slate-700', 'text-gray-700', 'dark:text-gray-300');
+    btnCounts.classList.remove('bg-primary', 'text-white');
+    btnCounts.classList.add('bg-gray-200', 'dark:bg-slate-700', 'text-gray-700', 'dark:text-gray-300');
+  }
+}
+
+function loadAssignedAccounts() {
+  google.script.run.withSuccessHandler(a => { 
+    allAccounts = a; 
+    renderAssignedAccounts(a); 
+  }).getAssignedAccounts();
+}
+
+function renderAssignedAccounts(accounts) {
+  const tbody = document.getElementById('assignedAccountsTable');
+  document.getElementById('assignedCount').textContent = accounts.length;
+  
+  if(accounts.length === 0) { 
+    tbody.innerHTML = '<tr><td colspan="8" class="p-8 text-center text-gray-500 italic">No accounts assigned to you.</td></tr>'; 
+    return; 
+  }
+  
+  tbody.innerHTML = accounts.map(a => `
+    <tr class="hover:bg-blue-50 dark:hover:bg-slate-700/50 cursor-pointer transition-colors" onclick="loadAccountDetails('${a.visitId}')">
+      <td class="px-6 py-4 whitespace-nowrap text-blue-600 font-medium">${a.client}</td>
+      <td class="px-6 py-4 whitespace-nowrap text-gray-700 dark:text-gray-300 font-mono text-xs">${a.visitId}</td>
+      <td class="px-6 py-4 whitespace-nowrap text-gray-700 dark:text-gray-300">${a.patientName}</td>
+      <td class="px-6 py-4 whitespace-nowrap text-gray-500">${a.dos}</td>
+      <td class="px-6 py-4 whitespace-nowrap text-gray-500 text-xs">${a.insurance||''}</td>
+      <td class="px-6 py-4 whitespace-nowrap font-bold text-gray-700 dark:text-gray-300">${formatCurrency(a.balanceAmount)}</td>
+      <td class="px-6 py-4 whitespace-nowrap" onclick="event.stopPropagation()">
+        <input class="bg-white dark:bg-slate-700 border border-gray-200 dark:border-slate-600 rounded-md w-32 text-xs p-1.5 focus:ring-2 focus:ring-primary" value="${a.remarks||''}" onchange="updateRemarks('${a.visitId}', this.value)" placeholder="Add remark...">
+      </td>
+      <td class="px-6 py-4 whitespace-nowrap text-right">
+        <button onclick="showVisitDetailsModal('${a.visitId}');event.stopPropagation()" class="text-gray-400 hover:text-primary transition-colors">
+          <span class="material-symbols-outlined">visibility</span>
+        </button>
+      </td>
+    </tr>`).join('');
+}
+
+// ADVANCED SEARCH
+function handleSearchKeyup(event) {
+  if (event.key === 'Enter') performSearch();
+}
+
+function performSearch() {
+  const searchTerm = document.getElementById('searchInput').value.trim();
+  const searchType = document.getElementById('searchType').value;
+  
+  if (!searchTerm) {
+    showError('Please enter a search term');
+    return;
+  }
+  
+  trackActivity('SEARCH_PERFORMED', `Type: ${searchType}, Term: ${searchTerm}`);
+  document.getElementById('searchResults').classList.remove('hidden');
+  document.getElementById('searchResultsTable').innerHTML = '<tr><td colspan="7" class="p-8 text-center"><div class="loading mx-auto"></div></td></tr>';
+  
+  google.script.run
+    .withSuccessHandler(results => {
+      searchResults = results;
+      displaySearchResults(results);
+    })
+    .withFailureHandler(e => {
+      showError('Search failed: ' + e.message);
+      document.getElementById('searchResults').classList.add('hidden');
+    })
+    .searchAccounts(searchTerm, searchType);
+}
+
+function displaySearchResults(results) {
+  const tbody = document.getElementById('searchResultsTable');
+  document.getElementById('searchResultCount').textContent = results.length;
+  
+  if (results.length === 0) {
+    tbody.innerHTML = '<tr><td colspan="7" class="p-8 text-center text-gray-500 italic">No results found</td></tr>';
+    return;
+  }
+  
+  tbody.innerHTML = results.map(a => `
+    <tr class="hover:bg-blue-50 dark:hover:bg-slate-700/50 cursor-pointer" onclick="loadAccountDetails('${a.visitId}')">
+      <td class="px-4 py-3 text-sm text-blue-600 font-medium">${a.client}</td>
+      <td class="px-4 py-3 text-sm font-mono text-xs text-gray-700 dark:text-gray-300">${a.visitId}</td>
+      <td class="px-4 py-3 text-sm text-gray-700 dark:text-gray-300">${a.patientName}</td>
+      <td class="px-4 py-3 text-sm text-gray-500">${a.insurance||'N/A'}</td>
+      <td class="px-4 py-3 text-sm font-bold text-gray-700 dark:text-gray-300">${formatCurrency(a.balanceAmount)}</td>
+      <td class="px-4 py-3 text-sm"><span class="px-2 py-1 rounded-full text-xs font-semibold bg-gray-100 dark:bg-slate-700">${a.statusCode||'N/A'}</span></td>
+      <td class="px-4 py-3 text-right">
+        <button onclick="showVisitDetailsModal('${a.visitId}');event.stopPropagation()" class="text-primary hover:text-primary-hover">
+          <span class="material-symbols-outlined text-sm">visibility</span>
+        </button>
+      </td>
+    </tr>`).join('');
+}
+
+function clearSearch() {
+  document.getElementById('searchInput').value = '';
+  document.getElementById('searchResults').classList.add('hidden');
+  searchResults = [];
+}
+
+function loadAccountDetails(visitId) {
+  if(!visitId) return;
+  currentVisitId = visitId;
+  
+  trackActivity('ACCOUNT_LOADED', visitId);
+  
+  // Show sections
+  document.getElementById('accountDetailsSection').classList.remove('hidden');
+  document.getElementById('claimHistorySection').classList.remove('hidden');
+  document.getElementById('workFormSection').classList.remove('hidden');
+  
+  // Scroll to view
+  document.getElementById('accountDetailsSection').scrollIntoView({ behavior: 'smooth' });
+  
+  // Clear previous history
+  cachedHistory[visitId] = null;
+  document.getElementById('claimHistory').innerHTML = '<p class="text-gray-400 italic col-span-full">Loading...</p>';
+
+  google.script.run.withSuccessHandler(acc => {
+    if(!acc) return showError('Visit ID not found');
+    
+    displayAccountDetails(acc);
+    
+    // Pre-fetch patient info for visit modal
+    google.script.run.withSuccessHandler(pat => {
+      cachedVisitDetails[visitId] = { acc, pat };
+    }).getPatientInfo(acc.patientName);
+    
+    // Populate form
+    document.getElementById('notes').value = acc.arNotes || '';
+    document.getElementById('statusCode').value = acc.statusCode || 'Pending';
+    document.getElementById('actionCode').value = acc.actionCode || 'Follow Up';
+    document.getElementById('assignedTo').value = acc.assignedTo || 'AR Assistance';
+    document.getElementById('followupDate').value = formatDateForInput(acc.followupDate);
+    
+    // Fetch history
+    google.script.run.withSuccessHandler(fullData => {
+       cachedHistory[visitId] = fullData;
+       renderClaimHistoryPreview(fullData.slice(0, 5));
+    }).getClaimHistory(visitId);
+    
+  }).getAccountByVisitId(visitId);
+}
+
+function displayAccountDetails(a) {
+  const field = (lbl, val, col='text-gray-900 dark:text-white', size='text-lg') => `
+    <div class="flex flex-col">
+      <span class="text-[10px] uppercase font-bold text-gray-400 mb-1 tracking-wide">${lbl}</span>
+      <span class="${size} font-bold ${col} break-words">${val||'-'}</span>
+    </div>`;
+
+  document.getElementById('accountDetails').innerHTML = `
+    ${field('Client', a.client, 'text-primary', 'text-xl')}
+    ${field('State', a.state)}
+    <div class="flex flex-col">
+      <span class="text-[10px] uppercase font-bold text-gray-400 mb-1 tracking-wide">Visit ID</span>
+      <button onclick="showVisitDetailsModal('${a.visitId}')" class="text-lg font-extrabold text-blue-500 hover:text-blue-700 hover:underline text-left bg-blue-50 dark:bg-blue-900/30 px-2 py-1 rounded-md transition-colors border border-blue-100 dark:border-blue-800">
+        ${a.visitId}
+      </button>
+    </div>
+    ${field('Patient', a.patientName)}
+    ${field('DOS', a.dos)}
+    ${field('Insurance', a.insurance, 'text-blue-600 dark:text-blue-400')}
+    ${field('Billed', formatCurrency(a.billedAmount))}
+    ${field('Balance', formatCurrency(a.balanceAmount), 'text-green-600 dark:text-green-400', 'text-lg')}
+    ${field('Type', `<span class="px-2 py-0.5 rounded bg-gray-100 dark:bg-slate-700 text-lg">${a.type||'N/A'}</span>`)}
+    ${field('Claim Type', a.claimType)}
+    ${field('Aging Days', a.agingDays)}
+    ${field('Aging Bucket', a.agingBucket)}
+    ${field('Allocated User', a.allocatedUser, 'text-purple-600')}
+    ${field('Allocation Date', a.allocationDate)}
+  `;
+}
+
+function showVisitDetailsModal(id) {
+  document.getElementById('visitDetailsModal').classList.remove('hidden');
+  document.getElementById('visitDetailsContent').innerHTML = '<div class="flex justify-center py-10"><div class="loading"></div></div>';
+  
+  trackActivity('VISIT_DETAILS_VIEWED', id);
+  
+  const cachedData = cachedVisitDetails[id];
+  
+  if (cachedData && cachedData.acc && cachedData.pat) {
+    displayVisitDetails(cachedData.acc, cachedData.pat);
+    return;
+  }
+
+  Promise.all([ 
+    new Promise(res => google.script.run.withSuccessHandler(res).getAccountByVisitId(id)) 
+  ]).then(([acc]) => {
+    google.script.run.withSuccessHandler(pat => {
+      displayVisitDetails(acc, pat);
+      cachedVisitDetails[id] = { acc, pat }; 
+    }).getPatientInfo(acc.patientName);
+  });
+}
+
+function displayVisitDetails(acc, pat) {
+  const v = (val) => val || 'N/A';
+  const box = (title, icon, content) => `
+    <div class="bg-gray-50 dark:bg-slate-700/50 p-5 rounded-xl border border-gray-100 dark:border-slate-600">
+      <div class="flex items-center gap-2 mb-4 text-primary border-b border-gray-200 dark:border-slate-600 pb-2">
+        <span class="material-symbols-outlined">${icon}</span>
+        <h4 class="font-bold uppercase text-sm tracking-wide">${title}</h4>
+      </div>
+      <div class="space-y-3 text-sm">${content}</div>
+    </div>`;
+
+  document.getElementById('visitDetailsContent').innerHTML = `
+    <div class="space-y-6">
+      <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+        ${box('Patient Details', 'person', `
+           <div class="flex justify-between"><span class="text-gray-500">Name</span><span class="font-bold dark:text-white text-right">${v(pat?.patientName || acc.patientName)}</span></div>
+           <div class="flex justify-between"><span class="text-gray-500">DOB</span><span class="font-bold dark:text-white">${v(pat?.dob)}</span></div>
+        `)}
+        
+        ${box('Primary Insurance', 'health_and_safety', `
+           <div class="flex justify-between"><span class="text-gray-500">Payer</span><span class="font-bold dark:text-white text-right">${v(pat?.primaryInsurance || acc.insurance)}</span></div>
+           <div class="flex justify-between"><span class="text-gray-500">Member ID</span><span class="font-mono bg-white dark:bg-slate-600 px-2 rounded text-xs">${v(pat?.primaryInsuranceId)}</span></div>
+           <div class="flex justify-between"><span class="text-gray-500">Eff. Date</span><span>${v(pat?.peffectiveDate)}</span></div>
+        `)}
+        
+        ${box('Secondary Insurance', 'policy', `
+           <div class="flex justify-between"><span class="text-gray-500">Payer</span><span class="font-bold dark:text-white text-right">${v(pat?.secondaryInsurance)}</span></div>
+           <div class="flex justify-between"><span class="text-gray-500">Member ID</span><span class="font-mono bg-white dark:bg-slate-600 px-2 rounded text-xs">${v(pat?.secondaryInsuranceId)}</span></div>
+           <div class="flex justify-between"><span class="text-gray-500">Eff. Date</span><span>${v(pat?.seffectiveDate)}</span></div>
+        `)}
+        
+        ${box('Remarks', 'comment', `
+           <p class="italic text-gray-600 dark:text-gray-300 leading-relaxed">${v(pat?.remarks)}</p>
+        `)}
+      </div>
+    </div>`;
+}
+
+function renderClaimHistoryPreview(history) {
+  const div = document.getElementById('claimHistory');
+  if(!history || !history.length) { 
+    div.innerHTML = '<p class="text-gray-400 italic col-span-full text-center py-4">No recent history.</p>'; 
+    return; 
+  }
+  
+  const colors = ['blue', 'purple', 'emerald', 'amber', 'rose'];
+  div.innerHTML = history.map((item, i) => {
+    const c = colors[i%colors.length];
+    return `<div class="p-4 rounded-xl bg-white dark:bg-slate-700 border border-gray-100 dark:border-slate-600 shadow-sm hover:shadow-md transition-shadow">
+      <div class="flex justify-between items-start mb-2">
+        <span class="inline-flex items-center px-2 py-0.5 rounded text-xs font-bold bg-${c}-100 text-${c}-800 dark:bg-${c}-900 dark:text-${c}-200">${item.actionCode}</span>
+        <span class="text-[10px] text-gray-400">${item.workedDate}</span>
+      </div>
+      <p class="text-gray-600 dark:text-gray-300 font-medium text-xs mb-1 line-clamp-1" title="${item.statusCode}">${item.statusCode}</p>
+      <p class="text-[10px] text-gray-400 truncate">By: ${item.workedBy}</p>
+    </div>`;
+  }).join('');
+}
+
+function showFullHistoryModal() {
+  if(!currentVisitId) return showError("Select a visit first");
+  if(!cachedHistory[currentVisitId]) return showError("History loading..."); 
+  
+  trackActivity('FULL_HISTORY_VIEWED', currentVisitId);
+  
+  const data = cachedHistory[currentVisitId];
+  document.getElementById('historyVisitIdDisplay').textContent = currentVisitId;
+  document.getElementById('fullHistoryModal').classList.remove('hidden');
+  
+  const timeline = document.getElementById('historyTimeline');
+  
+  if(!data.length) { 
+    timeline.innerHTML = '<p class="text-center text-gray-500 py-10">No history available.</p>'; 
+    return; 
+  }
+  
+  const colors = ['blue', 'purple', 'teal', 'indigo'];
+  timeline.innerHTML = data.map((item, i) => {
+    const c = colors[i%colors.length];
+    return `
+    <div class="timeline-wrapper pb-8 last:pb-0 relative">
+      <div class="timeline-dot border-${c}-500 text-${c}-600 dark:text-${c}-400">
+        <span class="material-symbols-outlined text-sm">history</span>
+      </div>
+      <div class="bg-white dark:bg-slate-800 p-5 rounded-xl border border-gray-100 dark:border-slate-700 shadow-sm hover:shadow-md transition-all">
+        <div class="flex justify-between items-center mb-3">
+           <h4 class="font-bold text-gray-900 dark:text-white text-lg">${item.actionCode}</h4>
+           <span class="text-xs font-mono text-gray-400 bg-gray-100 dark:bg-slate-700 px-2 py-1 rounded">${item.workedDate}</span>
+        </div>
+        <div class="flex flex-wrap gap-2 mb-4">
+           <span class="px-2 py-1 bg-red-100 text-red-800 dark:bg-red-900/30 dark:text-red-200 rounded text-xs font-bold border border-red-200 dark:border-red-800">Status: ${item.statusCode}</span>
+           <span class="px-2 py-1 bg-blue-100 text-blue-800 dark:bg-blue-900/30 dark:text-blue-200 rounded text-xs font-bold border border-blue-200 dark:border-blue-800">Assigned: ${item.assignedTo}</span>
+           <span class="px-2 py-1 bg-purple-100 text-purple-800 dark:bg-purple-900/30 dark:text-purple-200 rounded text-xs font-bold border border-purple-200 dark:border-purple-800">By: ${item.workedBy}</span>
+        </div>
+        <div class="text-gray-600 dark:text-gray-300 text-sm bg-gray-50 dark:bg-slate-900/50 p-3 rounded-lg border border-gray-100 dark:border-slate-700 italic">
+          "${item.arComments || 'No comments provided.'}"
+        </div>
+      </div>
+    </div>`;
+  }).join('');
+}
+
+function showAccountsModal(type) {
+  const titles = {'assigned':'Assigned','worked':'Worked','pending':'Pending','nonWorkable':'Non-Workable'};
+  document.getElementById('modalTitle').textContent = `Total ${titles[type]} Accounts`;
+  document.getElementById('accountsModal').classList.remove('hidden');
+  document.getElementById('modalLoading').classList.remove('hidden');
+  document.getElementById('modalAccountsTableBody').innerHTML = '';
+  document.getElementById('modalExportBtn').onclick = () => exportAccounts(type);
+  
+  google.script.run.withSuccessHandler(data => {
+    document.getElementById('modalLoading').classList.add('hidden');
+    document.getElementById('modalCount').textContent = `${data.length} Records`;
+    document.getElementById('modalAccountsTableBody').innerHTML = data.map(r => `
+      <tr class="hover:bg-gray-50 dark:hover:bg-slate-700/50 cursor-pointer" onclick="loadAccountDetails('${r.visitId}');closeAccountsModal()">
+        <td class="px-6 py-3 text-sm text-blue-500 font-medium">${r.client}</td>
+        <td class="px-6 py-3 text-sm dark:text-white font-mono text-xs">${r.visitId}</td>
+        <td class="px-6 py-3 text-sm text-gray-600 dark:text-gray-300">${r.patientName}</td>
+        <td class="px-6 py-3 text-sm"><span class="px-2 py-1 bg-gray-100 dark:bg-slate-700 rounded text-xs font-semibold">${r.statusCode}</span></td>
+        <td class="px-6 py-3 text-sm font-bold text-gray-700 dark:text-gray-300">${formatCurrency(r.balanceAmount)}</td>
+      </tr>`).join('');
+  }).getFilteredAccountsData(type);
+}
+
+function exportAccounts(type) {
+  trackActivity('EXPORT', type);
+  google.script.run.withSuccessHandler(csv => {
+    const blob = new Blob([csv.map(r=>r.join(',')).join('\n')], {type:'text/csv'});
+    const a = document.createElement('a');
+    a.href = URL.createObjectURL(blob);
+    a.download = `${type}_export_${new Date().toISOString().split('T')[0]}.csv`;
+    a.click();
+    showSuccess('Export successful');
+  }).exportAccountsToCSV(type);
+}
+
+function saveWorkDetails(e) {
+  e.preventDefault();
+  if(!currentVisitId) return showError('Select a Visit ID first');
+  
+  const btn = document.getElementById('saveButtonText');
+  const spin = document.getElementById('saveButtonLoading');
+  btn.classList.add('hidden');
+  spin.classList.remove('hidden');
+  
+  const form = {
+    notes: document.getElementById('notes').value,
+    source: document.getElementById('source').value,
+    statusCode: document.getElementById('statusCode').value,
+    actionCode: document.getElementById('actionCode').value,
+    assignedTo: document.getElementById('assignedTo').value,
+    followupDate: document.getElementById('followupDate').value
+  };
+  
+  trackActivity('ACCOUNT_UPDATED', `${currentVisitId}: ${form.statusCode}/${form.actionCode}`);
+  
+  google.script.run.withSuccessHandler(() => {
+    btn.classList.remove('hidden');
+    spin.classList.add('hidden');
+    showSuccess('Changes saved successfully');
+    loadStatistics();
+    loadAssignedAccounts();
+    loadAccountDetails(currentVisitId);
+  }).withFailureHandler(e => {
+    btn.classList.remove('hidden');
+    spin.classList.add('hidden');
+    showError(e.message);
+  }).updateAccountWorkForm(currentVisitId, form);
+}
+
+function updateRemarks(id, val) {
+  trackActivity('REMARKS_UPDATED', id);
+  google.script.run.withFailureHandler(e=>showError(e.message)).updateRemarks(id, val);
+}
+
+function closeModal(id) { document.getElementById(id).classList.add('hidden'); }
+function closeAccountsModal() { closeModal('accountsModal'); }
+
+function formatCurrency(n) {
+  return '$' + parseFloat(n||0).toFixed(2).replace(/\B(?=(\d{3})+(?!\d))/g, ",");
+}
+
+function formatDateForInput(d) {
+  if(!d) return '';
+  const dt = new Date(d);
+  return `${dt.getFullYear()}-${String(dt.getMonth()+1).padStart(2,'0')}-${String(dt.getDate()).padStart(2,'0')}`;
+}
+
+function updateClocks() {
+  const t = new Date();
+  const f = (z) => t.toLocaleTimeString('en-US',{timeZone:z,hour:'2-digit',minute:'2-digit',hour12:false});
+  
+  const estEl = document.getElementById('timeEST');
+  if(estEl) {
+    estEl.textContent = f('America/New_York');
+    document.getElementById('timePST').textContent = f('America/Los_Angeles');
+    document.getElementById('timeCST').textContent = f('America/Chicago');
+    document.getElementById('timeIST').textContent = f('Asia/Kolkata');
+  }
+}
+
+function showToast(msg, type='success') {
+  const div = document.createElement('div');
+  div.className = `toast ${type}`;
+  div.innerHTML = `<span class="material-symbols-outlined mr-2">${type==='success'?'check_circle':'error'}</span>${msg}`;
+  document.getElementById('toast-container').appendChild(div);
+  requestAnimationFrame(() => div.classList.add('show'));
+  setTimeout(() => {
+    div.classList.remove('show');
+    setTimeout(() => div.remove(), 300);
+  }, 3000);
+}
+
+function showSuccess(m) { showToast(m, 'success'); }
+function showError(m) { showToast(m, 'error'); }
+
+function toggleSettingsModal() { 
+  const m = document.getElementById('settingsModal'); 
+  const p = document.getElementById('settingsPanel');
+  if(m.classList.contains('hidden')) {
+    m.classList.remove('hidden');
+    setTimeout(()=>p.classList.remove('translate-x-full'),10);
+  } else {
+    p.classList.add('translate-x-full');
+    setTimeout(()=>m.classList.add('hidden'),300);
+  }
+}
+
+function setTheme(themeClass) { 
+  document.body.classList.remove('theme-blue', 'theme-purple', 'theme-teal', 'theme-rose');
+  document.body.classList.add(themeClass);
+  localStorage.setItem('ar_theme', themeClass);
+}
+
+function setMode(mode) {
+  const btnLight = document.getElementById('btnLight');
+  const btnDark = document.getElementById('btnDark');
+
+  if (mode === "light") {
+    document.documentElement.classList.remove('dark');
+    btnLight.classList.add('bg-primary', 'text-white');
+    btnLight.classList.remove('bg-gray-200', 'dark:bg-slate-700', 'text-gray-700', 'dark:text-gray-300');
+
+    btnDark.classList.remove('bg-primary', 'text-white');
+    btnDark.classList.add('bg-gray-200', 'dark:bg-slate-700', 'text-gray-700', 'dark:text-gray-300');
+
+    localStorage.setItem('ar_mode', 'light');
+  } 
+  else {
+    document.documentElement.classList.add('dark');
+    btnDark.classList.add('bg-primary', 'text-white');
+    btnDark.classList.remove('bg-gray-200', 'dark:bg-slate-700', 'text-gray-700', 'dark:text-gray-300');
+
+    btnLight.classList.remove('bg-primary', 'text-white');
+    btnLight.classList.add('bg-gray-200', 'dark:bg-slate-700', 'text-gray-700', 'dark:text-gray-300');
+
+    localStorage.setItem('ar_mode', 'dark');
+  }
+}

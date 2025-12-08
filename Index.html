@@ -1,0 +1,1808 @@
+<!DOCTYPE html>
+<html class="dark" lang="en">
+<head>
+  <meta charset="utf-8"/>
+  <meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+  <title>AR Connect - LAH_v3.0</title>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet"/>
+  <link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined" rel="stylesheet"/>
+  <script src="https://cdn.tailwindcss.com?plugins=forms,typography"></script>
+  
+  <script>
+    tailwind.config = {
+      darkMode: "class",
+      theme: {
+        extend: {
+          colors: {
+            primary: "var(--color-primary-main)", 
+            "primary-hover": "var(--color-primary-dark)",
+          },
+          fontFamily: { display: ["Inter", "sans-serif"] },
+        },
+      },
+    };
+  </script>
+  
+  <style>
+    :root { 
+      --color-primary-main: #2563EB; 
+      --color-primary-dark: #1D4ED8;
+      --header-bg: linear-gradient(135deg, #1e3a8a 0%, #3b82f6 100%);
+    }
+    .theme-purple { --color-primary-main: #9333EA; --color-primary-dark: #7E22CE; --header-bg: linear-gradient(135deg, #581c87 0%, #a855f7 100%); }
+    .theme-teal { --color-primary-main: #0D9488; --color-primary-dark: #0F766E; --header-bg: linear-gradient(135deg, #134e4a 0%, #14b8a6 100%); }
+    .theme-rose { --color-primary-main: #E11D48; --color-primary-dark: #BE123C; --header-bg: linear-gradient(135deg, #881337 0%, #f43f5e 100%); }
+
+    body { font-family: 'Inter', sans-serif; }
+    .glass-header { background: var(--header-bg); box-shadow: 0 4px 20px -5px rgba(0,0,0,0.2); color: white; }
+    .loading { display: inline-block; width: 20px; height: 20px; border: 3px solid rgba(128,128,128,.3); border-radius: 50%; border-top-color: var(--color-primary-main); animation: spin 1s infinite; }
+    @keyframes spin { to { transform: rotate(360deg); } }
+    
+    #toast-container { position: fixed; bottom: 20px; right: 20px; z-index: 100; display: flex; flex-direction: column; gap: 10px; }
+    .toast { display: flex; align-items: center; padding: 12px 20px; border-radius: 8px; color: white; box-shadow: 0 4px 15px rgba(0,0,0,0.15); transform: translateY(20px); opacity: 0; transition: all 0.3s ease; }
+    .toast.show { transform: translateY(0); opacity: 1; }
+    .toast.success { background-color: #059669; } .toast.error { background-color: #DC2626; }
+
+    .timeline-wrapper { position: relative; padding-left: 2rem; border-left: 2px solid #374151; }
+    .dark .timeline-wrapper { border-left-color: #4b5563; }
+    .light .timeline-wrapper { border-left-color: #e5e7eb; }
+    .timeline-dot { position: absolute; left: -2.6rem; top: 0; display: flex; align-items: center; justify-content: center; width: 40px; height: 40px; background-color: #1f2937; border-radius: 50%; border: 2px solid #374151; z-index: 10; }
+    .light .timeline-dot { background-color: #fff; border-color: #e5e7eb; }
+    
+    .custom-scrollbar::-webkit-scrollbar { width: 8px; height: 8px; }
+    .custom-scrollbar::-webkit-scrollbar-track { background: rgba(0,0,0,0.1); border-radius: 4px; }
+    .custom-scrollbar::-webkit-scrollbar-thumb { background: rgba(0,0,0,0.3); border-radius: 4px; }
+    .custom-scrollbar::-webkit-scrollbar-thumb:hover { background: rgba(0,0,0,0.5); }
+    .dark .custom-scrollbar::-webkit-scrollbar-track { background: rgba(255,255,255,0.1); }
+    .dark .custom-scrollbar::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.3); }
+    .dark .custom-scrollbar::-webkit-scrollbar-thumb:hover { background: rgba(255,255,255,0.5); }
+  </style>
+</head>
+<body class="text-gray-800 dark:text-gray-300 antialiased transition-colors duration-200 bg-gray-50 dark:bg-slate-900">
+<div class="min-h-screen">
+  
+  <header class="glass-header px-8 py-6 mb-8 flex justify-between items-center rounded-b-3xl mx-4 mt-2">
+    <div>
+      <h1 class="text-3xl font-bold tracking-tight">AR Connect - LAH_v3.0</h1>
+      <p class="text-blue-100 text-sm mt-1">Logged in as <span id="currentUser" class="font-semibold text-white">...</span></p>
+    </div>
+    <div class="flex items-center gap-4">
+       <div class="hidden lg:grid grid-cols-4 gap-4 text-center bg-white/10 backdrop-blur-md px-6 py-4 rounded-xl border border-white/20">
+         <div><p class="font-bold text-lg" id="timeEST">--:--</p><p class="opacity-80 text-sm">EST</p></div>
+         <div><p class="font-bold text-lg" id="timePST">--:--</p><p class="opacity-80 text-sm">PST</p></div>
+         <div><p class="font-bold text-lg" id="timeCST">--:--</p><p class="opacity-80 text-sm">CST</p></div>
+         <div><p class="font-bold text-lg" id="timeIST">--:--</p><p class="opacity-80 text-sm">IST</p></div>
+       </div>
+       <button onclick="toggleSettingsModal()" class="p-2.5 rounded-full bg-white/20 hover:bg-white/30 transition-all shadow-lg border border-white/30">
+        <span class="material-symbols-outlined text-white">settings</span>
+       </button>
+    </div>
+  </header>
+
+  <div class="px-8 pb-12 space-y-8">
+    <!-- Stats Cards with Toggle -->
+    <div class="bg-white dark:bg-slate-800 p-4 rounded-2xl shadow border border-gray-100 dark:border-slate-700">
+      <div class="flex justify-between items-center mb-4">
+        <h2 class="text-lg font-bold text-gray-900 dark:text-white">Dashboard Overview</h2>
+      </div>
+      
+      <div id="statsCountsView" class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
+        <button onclick="showAccountsModal('assigned')" class="text-left bg-gradient-to-br from-blue-50 to-blue-100 dark:from-blue-900/30 dark:to-blue-800/20 p-5 rounded-xl border border-blue-200 dark:border-blue-700 hover:shadow-lg transition-all group">
+          <div class="flex justify-between items-start mb-2">
+            <span class="material-symbols-outlined text-blue-600 dark:text-blue-400 text-3xl">assignment</span>
+            <span class="text-xs bg-blue-200 dark:bg-blue-700 px-2 py-1 rounded-full font-bold text-blue-800 dark:text-blue-200">Total</span>
+          </div>
+          <h2 class="text-sm font-medium text-gray-600 dark:text-gray-400 mb-1">Assigned</h2>
+          <p class="text-3xl font-extrabold text-blue-600 dark:text-blue-400 group-hover:scale-105 transition-transform" id="statAssigned">0</p>
+        </button>
+        
+        <button onclick="showAccountsModal('worked')" class="text-left bg-gradient-to-br from-green-50 to-green-100 dark:from-green-900/30 dark:to-green-800/20 p-5 rounded-xl border border-green-200 dark:border-green-700 hover:shadow-lg transition-all group">
+          <div class="flex justify-between items-start mb-2">
+            <span class="material-symbols-outlined text-green-600 dark:text-green-400 text-3xl">check_circle</span>
+            <span class="text-xs bg-green-200 dark:bg-green-700 px-2 py-1 rounded-full font-bold text-green-800 dark:text-green-200">Completed</span>
+          </div>
+          <h2 class="text-sm font-medium text-gray-600 dark:text-gray-400 mb-1">Worked</h2>
+          <p class="text-3xl font-extrabold text-green-600 dark:text-green-400 group-hover:scale-105 transition-transform" id="statWorked">0</p>
+        </button>
+        
+        <button onclick="showAccountsModal('pending')" class="text-left bg-gradient-to-br from-amber-50 to-amber-100 dark:from-amber-900/30 dark:to-amber-800/20 p-5 rounded-xl border border-amber-200 dark:border-amber-700 hover:shadow-lg transition-all group">
+          <div class="flex justify-between items-start mb-2">
+            <span class="material-symbols-outlined text-amber-600 dark:text-amber-400 text-3xl">pending</span>
+            <span class="text-xs bg-amber-200 dark:bg-amber-700 px-2 py-1 rounded-full font-bold text-amber-800 dark:text-amber-200">Action Needed</span>
+          </div>
+          <h2 class="text-sm font-medium text-gray-600 dark:text-gray-400 mb-1">Pending</h2>
+          <p class="text-3xl font-extrabold text-amber-600 dark:text-amber-400 group-hover:scale-105 transition-transform" id="statPending">0</p>
+        </button>
+        
+        <button onclick="showAccountsModal('nonWorkable')" class="text-left bg-gradient-to-br from-red-50 to-red-100 dark:from-red-900/30 dark:to-red-800/20 p-5 rounded-xl border border-red-200 dark:border-red-700 hover:shadow-lg transition-all group">
+          <div class="flex justify-between items-start mb-2">
+            <span class="material-symbols-outlined text-red-600 dark:text-red-400 text-3xl">block</span>
+            <span class="text-xs bg-red-200 dark:bg-red-700 px-2 py-1 rounded-full font-bold text-red-800 dark:text-red-200">Blocked</span>
+          </div>
+          <h2 class="text-sm font-medium text-gray-600 dark:text-gray-400 mb-1">Non-Workable</h2>
+          <p class="text-3xl font-extrabold text-red-600 dark:text-red-400 group-hover:scale-105 transition-transform" id="statNonWorkable">0</p>
+        </button>
+      </div>
+      
+    </div>
+
+    <!-- Search Section -->
+    <div class="bg-white dark:bg-slate-800 p-6 rounded-2xl shadow border-l-4 border-primary">
+      <div class="flex flex-col lg:flex-row gap-4 items-end">
+        <div class="flex-grow">
+          <label class="block text-sm font-bold mb-2 text-gray-700 dark:text-gray-200">
+            <span class="material-symbols-outlined text-primary align-middle mr-1">search</span>
+            Search by Visit ID
+          </label>
+          <div class="flex gap-2">
+            <input id="visitIdSearchInput" class="flex-1 bg-gray-50 dark:bg-slate-900 border border-gray-200 dark:border-slate-600 rounded-xl px-4 py-3 focus:ring-2 focus:ring-primary font-medium" placeholder="Enter Visit ID..." type="text" onkeyup="handleVisitIdSearch(event)"/>
+            <button onclick="performVisitIdSearch()" class="bg-primary text-white font-bold py-3 px-6 rounded-xl shadow-lg hover:opacity-90 transform active:scale-95 transition-all">
+              <span class="material-symbols-outlined">search</span>
+            </button>
+          </div>
+        </div>
+        <button onclick="showAdvancedSearchModal()" class="bg-gray-200 dark:bg-slate-700 text-gray-700 dark:text-gray-300 font-bold py-3 px-6 rounded-xl shadow hover:opacity-90 transform active:scale-95 transition-all flex items-center gap-2">
+          <span class="material-symbols-outlined">tune</span>
+          Advanced Search
+        </button>
+      </div>
+      
+    </div>
+
+    <!-- Account Details -->
+    <div id="accountDetailsSection" class="bg-white dark:bg-slate-800 p-6 rounded-2xl shadow border-l-4 border-green-500 hidden">
+      <h2 class="text-lg font-bold text-gray-900 dark:text-white flex items-center gap-2 mb-6">
+        <span class="material-symbols-outlined text-green-600">edit_document</span> Account Work Form
+      </h2>
+      <div id="accountDetails" class="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-6 gap-x-8 gap-y-6 text-sm"></div>
+    </div>
+
+    <!-- Claim History -->
+    <div id="claimHistorySection" class="bg-white dark:bg-slate-800 p-6 rounded-2xl shadow border border-gray-100 dark:border-slate-700 hidden">
+      <div class="flex justify-between items-center mb-4">
+        <h2 class="text-lg font-bold text-gray-900 dark:text-white flex items-center gap-2"><span class="material-symbols-outlined text-primary">history</span> Claim History (Last 5)</h2>
+        <button onclick="showFullHistoryModal()" class="text-sm text-primary hover:underline font-semibold flex items-center gap-1">View Full History <span class="material-symbols-outlined text-sm">open_in_new</span></button>
+      </div>
+      <div id="claimHistory" class="grid grid-cols-1 sm:grid-cols-5 gap-4"></div>
+    </div>
+
+    <!-- Work Form -->
+    <form id="workFormSection" class="bg-white dark:bg-slate-800 p-6 rounded-2xl shadow hidden" onsubmit="saveWorkDetails(event)">
+      <div class="space-y-4">
+        <div><label class="block text-sm font-bold mb-1 text-gray-700 dark:text-gray-200">Notes</label><textarea class="w-full bg-gray-50 dark:bg-slate-900 border-gray-300 dark:border-slate-600 rounded-lg h-24 focus:ring-primary focus:border-primary" id="notes"></textarea></div>
+        <div id="remarksFieldForNonWorkable" class="hidden">
+          <label class="block text-sm font-bold mb-1 text-gray-700 dark:text-gray-200">Remarks <span class="text-xs text-gray-500">(For Non-Workable Accounts)</span></label>
+          <textarea class="w-full bg-gray-50 dark:bg-slate-900 border-gray-300 dark:border-slate-600 rounded-lg h-20 focus:ring-primary focus:border-primary" id="remarks" placeholder="Enter remarks for Non-Workable account..."></textarea>
+        </div>
+        <div class="grid grid-cols-1 md:grid-cols-5 gap-4">
+          <div><label class="block text-xs font-bold uppercase text-gray-500 mb-1">Source</label><select class="w-full bg-gray-50 dark:bg-slate-900 rounded-lg border-gray-300 dark:border-slate-600" id="source"><option>Portal</option></select></div>
+          <div><label class="block text-xs font-bold uppercase text-gray-500 mb-1">Status Code</label><select class="w-full bg-gray-50 dark:bg-slate-900 rounded-lg border-gray-300 dark:border-slate-600" id="statusCode" onchange="toggleRemarksField()"><option>Pending</option></select></div>
+          <div><label class="block text-xs font-bold uppercase text-gray-500 mb-1">Action Code</label><select class="w-full bg-gray-50 dark:bg-slate-900 rounded-lg border-gray-300 dark:border-slate-600" id="actionCode"><option>Follow Up</option></select></div>
+          <div><label class="block text-xs font-bold uppercase text-gray-500 mb-1">Assigned To</label><select class="w-full bg-gray-50 dark:bg-slate-900 rounded-lg border-gray-300 dark:border-slate-600" id="assignedTo"><option>AR Assistance</option></select></div>
+          <div><label class="block text-xs font-bold uppercase text-gray-500 mb-1">Followup</label><input class="w-full bg-gray-50 dark:bg-slate-900 rounded-lg border-gray-300 dark:border-slate-600" id="followupDate" type="date"/></div>
+        </div>
+        <div class="text-right pt-2">
+          <button class="bg-primary text-white font-bold py-3 px-10 rounded-lg shadow hover:opacity-90 transform active:scale-95 transition-all" type="submit">
+            <span id="saveButtonText">Save Changes</span><span id="saveButtonLoading" class="loading hidden"></span>
+          </button>
+        </div>
+      </div>
+    </form>
+
+    <!-- Main Table with Tabs -->
+    <div class="bg-white dark:bg-slate-800 rounded-2xl shadow overflow-hidden border border-gray-100 dark:border-slate-700">
+      <div class="px-6 py-4 border-b dark:border-slate-700 bg-gray-50/50 dark:bg-slate-900/50">
+        <div class="flex justify-between items-center mb-4">
+          <h2 class="font-bold text-gray-900 dark:text-white">Accounts</h2>
+          <span id="assignedCount" class="bg-primary/10 text-primary px-3 py-1 rounded-full text-xl font-bold">0</span>
+        </div>
+        <!-- Tab Navigation -->
+        <div class="flex gap-2 border-b dark:border-slate-700">
+          <button onclick="switchAccountTab('assigned')" id="tabAssigned" class="px-6 py-3 font-medium text-sm border-b-2 border-primary text-primary bg-white dark:bg-slate-800">
+            Assigned Accounts
+          </button>
+          <button onclick="switchAccountTab('results')" id="tabResults" class="px-6 py-3 font-medium text-sm border-b-2 border-transparent text-gray-500 dark:text-gray-400 hover:text-primary">
+            Search Results <span id="resultsCount" class="ml-2 bg-primary/20 text-primary px-2 py-0.5 rounded-full text-xs hidden">0</span>
+          </button>
+        </div>
+      </div>
+      <div class="overflow-x-auto">
+        <table class="min-w-full divide-y divide-gray-200 dark:divide-gray-700">
+          <thead class="bg-gray-100 dark:bg-slate-900">
+            <tr>
+              <th class="px-6 py-3 text-left text-xs font-bold text-gray-500 uppercase">Client</th>
+              <th class="px-6 py-3 text-left text-xs font-bold text-gray-500 uppercase">Visit ID</th>
+              <th class="px-6 py-3 text-left text-xs font-bold text-gray-500 uppercase">Patient</th>
+              <th class="px-6 py-3 text-left text-xs font-bold text-gray-500 uppercase">DOS</th>
+              <th class="px-6 py-3 text-left text-xs font-bold text-gray-500 uppercase">Insurance</th>
+              <th class="px-6 py-3 text-left text-xs font-bold text-gray-500 uppercase">Balance</th>
+              <th class="px-6 py-3 text-left text-xs font-bold text-gray-500 uppercase">Remarks</th>
+              <th class="px-6 py-3"></th>
+            </tr>
+          </thead>
+          <tbody id="assignedAccountsTable" class="bg-white dark:bg-slate-800 divide-y divide-gray-200 dark:divide-gray-700"></tbody>
+          <tbody id="searchResultsTableMain" class="bg-white dark:bg-slate-800 divide-y divide-gray-200 dark:divide-gray-700" style="display: none;"></tbody>
+        </table>
+      </div>
+      <div id="resultsTabActions" class="px-6 py-4 border-t dark:border-slate-700 bg-gray-50/50 dark:bg-slate-900/50 hidden">
+        <div class="flex justify-between items-center">
+          <span class="text-sm text-gray-600 dark:text-gray-400">Showing <span id="resultsCountDisplay">0</span> search results</span>
+          <button onclick="clearSearchResults()" class="bg-red-500 hover:bg-red-600 text-white font-medium py-2 px-4 rounded-lg transition-all flex items-center gap-2">
+            <span class="material-symbols-outlined text-sm">clear_all</span>
+            Clear Results
+          </button>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- MODALS (Settings, Visit Details, History, Accounts Preview) -->
+<div id="settingsModal" class="fixed inset-0 z-[60] hidden">
+  <div class="absolute inset-0 bg-black/50 backdrop-blur-sm" onclick="toggleSettingsModal()"></div>
+  <div class="absolute right-0 top-0 h-full w-80 bg-white dark:bg-slate-800 shadow-2xl transform transition-transform duration-300 translate-x-full" id="settingsPanel">
+    <div class="p-6">
+      <div class="flex justify-between items-center mb-8"><h2 class="text-xl font-bold">Settings</h2><button onclick="toggleSettingsModal()"><span class="material-symbols-outlined">close</span></button></div>
+      <div class="mb-6">
+        <h3 class="text-xs font-bold text-gray-400 uppercase tracking-wider mb-2">Display Mode</h3>
+        <div class="flex gap-2 p-1 bg-gray-100 dark:bg-slate-700 rounded-lg">
+          <button onclick="setMode('light')" class="flex-1 py-2 rounded-md text-sm font-medium transition-colors text-gray-500 hover:bg-white" id="btnLight">
+             <span class="flex items-center justify-center gap-2"><span class="material-symbols-outlined text-sm">light_mode</span> Light</span>
+          </button>
+          <button onclick="setMode('dark')" class="flex-1 py-2 rounded-md text-sm font-medium transition-colors bg-white shadow-sm dark:bg-slate-600 dark:text-white" id="btnDark">
+             <span class="flex items-center justify-center gap-2"><span class="material-symbols-outlined text-sm">dark_mode</span> Dark</span>
+          </button>
+        </div>
+      </div>
+      <div class="mb-6">
+        <h3 class="text-xs font-bold text-gray-400 uppercase tracking-wider mb-2">Theme Color</h3>
+        <div class="space-y-3">
+          <button onclick="setTheme('theme-blue')" class="w-full flex items-center gap-3 p-3 rounded-xl border hover:bg-blue-50 dark:hover:bg-slate-700"><div class="w-6 h-6 rounded-full bg-blue-600"></div><span>Ocean Blue</span></button>
+          <button onclick="setTheme('theme-purple')" class="w-full flex items-center gap-3 p-3 rounded-xl border hover:bg-purple-50 dark:hover:bg-slate-700"><div class="w-6 h-6 rounded-full bg-purple-600"></div><span>Royal Purple</span></button>
+          <button onclick="setTheme('theme-teal')" class="w-full flex items-center gap-3 p-3 rounded-xl border hover:bg-teal-50 dark:hover:bg-slate-700"><div class="w-6 h-6 rounded-full bg-teal-600"></div><span>Emerald Teal</span></button>
+          <button onclick="setTheme('theme-rose')" class="w-full flex items-center gap-3 p-3 rounded-xl border hover:bg-rose-50 dark:hover:bg-slate-700"><div class="w-6 h-6 rounded-full bg-rose-600"></div><span>Crimson Rose</span></button>
+        </div>
+      </div>
+      <div id="developerOptionsSection" class="pt-4 border-t dark:border-slate-700 hidden">
+        <button onclick="showDeveloperModal()" class="w-full flex items-center gap-3 p-3 rounded-xl border border-primary hover:bg-primary hover:text-white transition-all">
+          <span class="material-symbols-outlined">admin_panel_settings</span>
+          <span class="font-medium">Developer Dashboard</span>
+        </button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div id="visitDetailsModal" class="fixed inset-0 z-50 overflow-y-auto hidden">
+  <div class="absolute inset-0 bg-black/60 backdrop-blur-sm" onclick="closeModal('visitDetailsModal')"></div>
+  <div class="relative flex items-center justify-center min-h-screen p-4">
+    <div class="bg-white dark:bg-slate-800 rounded-2xl shadow-2xl w-full max-w-4xl border-t-8 border-primary overflow-hidden">
+      <div class="flex justify-between items-center p-6 border-b dark:border-slate-700">
+        <div class="flex items-center gap-3"><div class="p-2 bg-primary/10 rounded-full text-primary"><span class="material-symbols-outlined">id_card</span></div><h2 class="text-2xl font-bold text-gray-900 dark:text-white">Visit Details</h2></div>
+        <button onclick="closeModal('visitDetailsModal')" class="text-gray-400 hover:text-red-500 transition-colors"><span class="material-symbols-outlined text-2xl">cancel</span></button>
+      </div>
+      <div id="visitDetailsContent" class="p-8 max-h-[70vh] overflow-y-auto"><div class="flex justify-center py-10"><div class="loading"></div></div></div>
+    </div>
+  </div>
+</div>
+
+<div id="fullHistoryModal" class="fixed inset-0 z-[55] overflow-y-auto hidden">
+  <div class="absolute inset-0 bg-black/60 backdrop-blur-sm" onclick="closeModal('fullHistoryModal')"></div>
+  <div class="relative flex items-center justify-center min-h-screen p-4">
+    <div class="bg-white dark:bg-slate-800 rounded-2xl shadow-2xl w-full max-w-3xl h-[85vh] flex flex-col border border-gray-100 dark:border-slate-700">
+      <div class="p-6 border-b dark:border-slate-700 flex justify-between items-center bg-gray-50/50 dark:bg-slate-900/50 rounded-t-2xl">
+        <div>
+          <h2 class="text-2xl font-bold text-gray-900 dark:text-white flex items-center gap-2"><span class="material-symbols-outlined text-primary">history_edu</span> Claim Life Cycle</h2>
+          <p class="text-sm text-gray-500 mt-1">Visit ID: <span id="historyVisitIdDisplay" class="font-mono font-bold text-primary">...</span></p>
+        </div>
+        <button onclick="closeModal('fullHistoryModal')" class="text-gray-400 hover:text-gray-600"><span class="material-symbols-outlined">close</span></button>
+      </div>
+      <div class="flex-grow overflow-auto p-8 custom-scrollbar bg-gray-50 dark:bg-slate-900/50">
+        <div id="historyTimeline" class="space-y-0 pl-4">
+           <!-- Timeline injected here -->
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ACCOUNTS PREVIEW MODAL -->
+<div id="accountsModal" class="fixed inset-0 z-50 overflow-y-auto hidden">
+  <div class="absolute inset-0 bg-black/50 backdrop-blur-sm" onclick="closeAccountsModal()"></div>
+  <div class="relative flex items-center justify-center min-h-screen p-4">
+    <div class="bg-white dark:bg-slate-800 rounded-2xl shadow-xl w-full max-w-6xl max-h-[90vh] flex flex-col">
+      <div class="flex justify-between items-center p-6 border-b dark:border-slate-700">
+        <h2 class="text-2xl font-bold text-gray-900 dark:text-white" id="modalTitle">Accounts Preview</h2>
+        <button onclick="closeAccountsModal()" class="text-gray-400 hover:text-gray-600"><span class="material-symbols-outlined">close</span></button>
+      </div>
+      <div class="flex-grow overflow-auto p-0 custom-scrollbar">
+        <table class="min-w-full divide-y divide-gray-200 dark:divide-gray-700">
+           <thead class="bg-gray-100 dark:bg-slate-700 sticky top-0 z-10">
+             <tr>
+               <th class="px-6 py-3 text-left text-xs font-bold text-gray-500 dark:text-gray-300 uppercase">Client</th>
+               <th class="px-6 py-3 text-left text-xs font-bold text-gray-500 dark:text-gray-300 uppercase">Visit ID</th>
+               <th class="px-6 py-3 text-left text-xs font-bold text-gray-500 dark:text-gray-300 uppercase">Patient</th>
+               <th class="px-6 py-3 text-left text-xs font-bold text-gray-500 dark:text-gray-300 uppercase">Status</th>
+               <th class="px-6 py-3 text-left text-xs font-bold text-gray-500 dark:text-gray-300 uppercase">Balance</th>
+             </tr>
+           </thead>
+           <tbody id="modalAccountsTableBody" class="bg-white dark:bg-slate-800 divide-y divide-gray-200 dark:divide-gray-700"></tbody>
+        </table>
+        <div id="modalLoading" class="hidden p-10 text-center text-gray-500">Loading data...</div>
+      </div>
+      <div class="p-4 border-t dark:border-slate-700 flex justify-end gap-3 bg-gray-50 dark:bg-slate-900 rounded-b-2xl">
+         <span class="self-center text-sm text-gray-500" id="modalCount">0 Records</span>
+         <button id="modalExportBtn" class="flex items-center space-x-2 bg-green-600 text-white font-semibold py-2 px-6 rounded-lg hover:bg-green-700 transition-all shadow-lg shadow-green-600/20">
+            <span class="material-symbols-outlined text-base">download</span><span>Export CSV</span>
+         </button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div id="toast-container"></div>
+
+<!-- Developer Dashboard Modal -->
+<div id="developerModal" class="fixed inset-0 z-[70] overflow-y-auto hidden">
+  <div class="absolute inset-0 bg-black/70 backdrop-blur-sm" onclick="closeDeveloperModal()"></div>
+  <div class="relative flex items-center justify-center min-h-screen p-4">
+    <div class="bg-white dark:bg-slate-800 rounded-2xl shadow-2xl w-full max-w-7xl max-h-[95vh] flex flex-col border border-gray-100 dark:border-slate-700 overflow-hidden">
+      <!-- Developer Login Screen -->
+      <div id="devLoginScreen" class="p-8">
+        <div class="flex items-center justify-center mb-6">
+          <div class="p-4 bg-primary/10 rounded-full">
+            <span class="material-symbols-outlined text-primary text-4xl">admin_panel_settings</span>
+          </div>
+        </div>
+        <h2 class="text-2xl font-bold text-center mb-2 text-gray-900 dark:text-white">Developer Login</h2>
+        <p class="text-gray-500 text-center mb-6 text-sm">AR Connect - LAH v3.0</p>
+        
+        <form onsubmit="handleDeveloperLogin(event)" class="space-y-4 max-w-md mx-auto">
+          <div>
+            <label class="block text-sm font-medium mb-2 text-gray-700 dark:text-gray-200">Username</label>
+            <input id="devLoginUsername" type="text" required class="w-full bg-gray-50 dark:bg-slate-900 border border-gray-200 dark:border-slate-600 rounded-lg px-4 py-3 focus:ring-2 focus:ring-primary text-base" placeholder="Enter username"/>
+          </div>
+          <div>
+            <label class="block text-sm font-medium mb-2 text-gray-700 dark:text-gray-200">Password</label>
+            <input id="devLoginPassword" type="password" required class="w-full bg-gray-50 dark:bg-slate-900 border border-gray-200 dark:border-slate-600 rounded-lg px-4 py-3 focus:ring-2 focus:ring-primary text-base" placeholder="Enter password"/>
+          </div>
+          <div id="devLoginError" class="hidden text-red-400 text-sm text-center p-3 bg-red-900/20 border border-red-800 rounded-lg"></div>
+          <button type="submit" class="w-full bg-primary hover:opacity-90 text-white font-bold py-3 rounded-lg transition-all text-base">
+            <span id="devLoginBtnText">Access Dashboard</span>
+            <span id="devLoginBtnLoading" class="loading hidden"></span>
+          </button>
+        </form>
+      </div>
+      
+      <!-- Developer Dashboard Screen -->
+      <div id="devDashboardScreen" class="hidden flex flex-col h-full">
+        <!-- Header -->
+        <div class="bg-gradient-to-r from-blue-900 to-blue-700 px-6 py-4 flex justify-between items-center">
+          <div>
+            <h2 class="text-2xl font-bold text-white">Developer Dashboard</h2>
+            <p class="text-blue-200 text-sm mt-1">AR Connect - System Monitoring & Logs</p>
+          </div>
+          <div class="flex items-center gap-3">
+            <button onclick="refreshDeveloperData()" class="p-2 bg-blue-800 hover:bg-blue-900 rounded-lg transition-all">
+              <span class="material-symbols-outlined text-white">refresh</span>
+            </button>
+            <button onclick="closeDeveloperModal()" class="p-2 bg-red-600 hover:bg-red-700 rounded-lg transition-all">
+              <span class="material-symbols-outlined text-white">close</span>
+            </button>
+          </div>
+        </div>
+        
+        <!-- Content -->
+        <div class="flex-grow overflow-y-auto p-6 space-y-6 bg-gray-50 dark:bg-slate-900 custom-scrollbar" style="max-height: calc(95vh - 80px);">
+          <!-- Quick Stats -->
+          <div class="grid grid-cols-1 md:grid-cols-4 gap-4">
+            <div class="bg-white dark:bg-slate-800 p-4 rounded-xl border border-gray-200 dark:border-slate-700">
+              <div class="flex items-center gap-3 mb-2">
+                <span class="material-symbols-outlined text-blue-400 text-2xl">group</span>
+                <div>
+                  <p class="text-xs text-gray-400 uppercase">Active Users</p>
+                  <p class="text-xl font-bold text-gray-900 dark:text-white" id="devStatActiveUsers">0</p>
+                </div>
+              </div>
+            </div>
+            
+            <div class="bg-white dark:bg-slate-800 p-4 rounded-xl border border-gray-200 dark:border-slate-700">
+              <div class="flex items-center gap-3 mb-2">
+                <span class="material-symbols-outlined text-green-400 text-2xl">moving</span>
+                <div>
+                  <p class="text-xs text-gray-400 uppercase">Total Actions</p>
+                  <p class="text-xl font-bold text-gray-900 dark:text-white" id="devStatTotalActions">0</p>
+                </div>
+              </div>
+            </div>
+            
+            <div class="bg-white dark:bg-slate-800 p-4 rounded-xl border border-gray-200 dark:border-slate-700">
+              <div class="flex items-center gap-3 mb-2">
+                <span class="material-symbols-outlined text-amber-400 text-2xl">warning</span>
+                <div>
+                  <p class="text-xs text-gray-400 uppercase">Errors</p>
+                  <p class="text-xl font-bold text-gray-900 dark:text-white" id="devStatErrors">0</p>
+                </div>
+              </div>
+            </div>
+            
+            <div class="bg-white dark:bg-slate-800 p-4 rounded-xl border border-gray-200 dark:border-slate-700">
+              <div class="flex items-center gap-3 mb-2">
+                <span class="material-symbols-outlined text-purple-400 text-2xl">update</span>
+                <div>
+                  <p class="text-xs text-gray-400 uppercase">Last Activity</p>
+                  <p class="text-sm font-bold text-gray-900 dark:text-white" id="devStatLastActivity">-</p>
+                </div>
+              </div>
+            </div>
+          </div>
+          
+          <!-- Tab Navigation -->
+          <div class="bg-white dark:bg-slate-800 rounded-xl border border-gray-200 dark:border-slate-700 overflow-hidden">
+            <div class="flex border-b border-gray-200 dark:border-slate-700 overflow-x-auto">
+              <button onclick="switchDevTab('dashboard')" id="devTabDashboard" class="flex-1 px-4 py-3 font-medium text-center border-b-2 border-primary text-primary bg-gray-50 dark:bg-slate-900 text-sm whitespace-nowrap">
+                <span class="material-symbols-outlined align-middle mr-2 text-base">dashboard</span>
+                Dashboard
+              </button>
+              <button onclick="switchDevTab('users')" id="devTabUsers" class="flex-1 px-4 py-3 font-medium text-center border-b-2 border-transparent text-gray-500 dark:text-gray-400 hover:text-primary hover:bg-gray-50 dark:hover:bg-slate-700 text-sm whitespace-nowrap">
+                <span class="material-symbols-outlined align-middle mr-2 text-base">people</span>
+                User Activity
+              </button>
+              <button onclick="switchDevTab('sessions')" id="devTabSessions" class="flex-1 px-4 py-3 font-medium text-center border-b-2 border-transparent text-gray-500 dark:text-gray-400 hover:text-primary hover:bg-gray-50 dark:hover:bg-slate-700 text-sm whitespace-nowrap">
+                <span class="material-symbols-outlined align-middle mr-2 text-base">history</span>
+                Active Sessions
+              </button>
+              <button onclick="switchDevTab('logs')" id="devTabLogs" class="flex-1 px-4 py-3 font-medium text-center border-b-2 border-transparent text-gray-500 dark:text-gray-400 hover:text-primary hover:bg-gray-50 dark:hover:bg-slate-700 text-sm whitespace-nowrap">
+                <span class="material-symbols-outlined align-middle mr-2 text-base">list_alt</span>
+                Activity Logs
+              </button>
+              <button onclick="switchDevTab('system')" id="devTabSystem" class="flex-1 px-4 py-3 font-medium text-center border-b-2 border-transparent text-gray-500 dark:text-gray-400 hover:text-primary hover:bg-gray-50 dark:hover:bg-slate-700 text-sm whitespace-nowrap">
+                <span class="material-symbols-outlined align-middle mr-2 text-base">settings</span>
+                System Info
+              </button>
+            </div>
+            
+            <!-- Dashboard Tab -->
+            <div id="devContentDashboard" class="p-4">
+              <div class="mb-4 flex justify-between items-center">
+                <h3 class="text-lg font-bold text-gray-900 dark:text-white">Analytics Dashboard</h3>
+                <button onclick="loadDevAnalytics()" class="px-4 py-2 bg-primary hover:opacity-90 rounded-lg text-sm font-medium">
+                  <span class="material-symbols-outlined text-sm align-middle">refresh</span>
+                  Refresh
+                </button>
+              </div>
+              <div id="devAnalyticsContent" class="space-y-4">
+                <div class="flex justify-center py-10"><div class="loading"></div></div>
+              </div>
+            </div>
+            
+            <!-- Users Tab -->
+            <div id="devContentUsers" class="p-4 hidden">
+              <div class="mb-4 flex justify-between items-center">
+                <h3 class="text-lg font-bold text-gray-900 dark:text-white">Active Users</h3>
+                <span class="text-sm text-gray-500" id="devUserCount">Loading...</span>
+              </div>
+              <div id="devUsersTable" class="space-y-3 max-h-[500px] overflow-y-auto custom-scrollbar">
+                <div class="flex justify-center py-10"><div class="loading"></div></div>
+              </div>
+            </div>
+            
+            <!-- Active Sessions Tab -->
+            <div id="devContentSessions" class="p-4 hidden">
+              <div class="mb-4 flex justify-between items-center">
+                <h3 class="text-lg font-bold text-gray-900 dark:text-white">Active Sessions</h3>
+                <button onclick="loadDevSessions()" class="px-4 py-2 bg-primary hover:opacity-90 rounded-lg text-sm font-medium">
+                  <span class="material-symbols-outlined text-sm align-middle">refresh</span>
+                  Refresh
+                </button>
+              </div>
+              <div id="devSessionsTable" class="space-y-3 max-h-[500px] overflow-y-auto custom-scrollbar">
+                <div class="flex justify-center py-10"><div class="loading"></div></div>
+              </div>
+            </div>
+            
+            <!-- Logs Tab -->
+            <div id="devContentLogs" class="p-4 hidden">
+              <div class="mb-4 flex justify-between items-center">
+                <h3 class="text-lg font-bold text-gray-900 dark:text-white">Activity Logs</h3>
+                <div class="flex gap-2">
+                  <select id="devLogFilter" onchange="filterDevLogs()" class="bg-gray-50 dark:bg-slate-900 border-gray-200 dark:border-slate-600 rounded-lg px-3 py-2 text-sm">
+                    <option value="all">All Actions</option>
+                    <option value="SEARCH">Search</option>
+                    <option value="ACCOUNT_UPDATE">Updates</option>
+                    <option value="EXPORT">Exports</option>
+                    <option value="ERROR">Errors</option>
+                  </select>
+                  <button onclick="loadDevLogs()" class="px-4 py-2 bg-primary hover:opacity-90 rounded-lg text-sm font-medium">
+                    <span class="material-symbols-outlined text-sm align-middle">refresh</span>
+                    Refresh
+                  </button>
+                </div>
+              </div>
+              <div class="overflow-x-auto max-h-[500px] overflow-y-auto custom-scrollbar">
+                <table class="w-full text-sm">
+                  <thead class="bg-gray-100 dark:bg-slate-900 text-left text-xs uppercase text-gray-500 sticky top-0">
+                    <tr>
+                      <th class="px-3 py-2">Timestamp</th>
+                      <th class="px-3 py-2">User</th>
+                      <th class="px-3 py-2">Action</th>
+                      <th class="px-3 py-2">Details</th>
+                      <th class="px-3 py-2">Status</th>
+                      <th class="px-3 py-2">Page</th>
+                    </tr>
+                  </thead>
+                  <tbody id="devLogsTableBody" class="text-sm divide-y divide-gray-200 dark:divide-gray-700">
+                    <tr><td colspan="6" class="p-8 text-center"><div class="loading mx-auto"></div></td></tr>
+                  </tbody>
+                </table>
+              </div>
+            </div>
+            
+            <!-- System Tab -->
+            <div id="devContentSystem" class="p-4 hidden">
+              <h3 class="text-lg font-bold text-gray-900 dark:text-white mb-4">System Information</h3>
+              <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div class="bg-gray-50 dark:bg-slate-900 p-4 rounded-lg border border-gray-200 dark:border-slate-700">
+                  <h4 class="font-bold text-gray-900 dark:text-white mb-3 flex items-center gap-2 text-sm">
+                    <span class="material-symbols-outlined text-blue-400">storage</span>
+                    Cache Status
+                  </h4>
+                  <div class="space-y-2 text-sm">
+                    <div class="flex justify-between">
+                      <span class="text-gray-500">Cache Duration:</span>
+                      <span class="text-gray-900 dark:text-white font-medium">5 minutes</span>
+                    </div>
+                    <div class="flex justify-between">
+                      <span class="text-gray-500">Auto Refresh:</span>
+                      <span class="text-green-500 font-medium">Enabled</span>
+                    </div>
+                  </div>
+                </div>
+                
+                <div class="bg-gray-50 dark:bg-slate-900 p-4 rounded-lg border border-gray-200 dark:border-slate-700">
+                  <h4 class="font-bold text-gray-900 dark:text-white mb-3 flex items-center gap-2 text-sm">
+                    <span class="material-symbols-outlined text-purple-400">security</span>
+                    Security
+                  </h4>
+                  <div class="space-y-2 text-sm">
+                    <div class="flex justify-between">
+                      <span class="text-gray-500">Activity Logging:</span>
+                      <span class="text-green-500 font-medium">Active</span>
+                    </div>
+                    <div class="flex justify-between">
+                      <span class="text-gray-500">Auth Method:</span>
+                      <span class="text-gray-900 dark:text-white font-medium">Google Apps Script</span>
+                    </div>
+                  </div>
+                </div>
+                
+                <div class="bg-gray-50 dark:bg-slate-900 p-4 rounded-lg border border-gray-200 dark:border-slate-700 md:col-span-2">
+                  <h4 class="font-bold text-gray-900 dark:text-white mb-3 flex items-center gap-2 text-sm">
+                    <span class="material-symbols-outlined text-amber-400">info</span>
+                    Application Info
+                  </h4>
+                  <div class="grid grid-cols-2 gap-4 text-sm">
+                    <div><span class="text-gray-500">Version:</span> <span class="text-gray-900 dark:text-white font-medium">3.0 Advanced</span></div>
+                    <div><span class="text-gray-500">Build:</span> <span class="text-gray-900 dark:text-white font-medium">2024.12</span></div>
+                    <div><span class="text-gray-500">Environment:</span> <span class="text-gray-900 dark:text-white font-medium">Production</span></div>
+                    <div><span class="text-gray-500">Sheet ID:</span> <span class="text-gray-900 dark:text-white font-mono text-xs">1DFFkBfPAwtq...</span></div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Advanced Search Modal -->
+<div id="advancedSearchModal" class="fixed inset-0 z-50 overflow-y-auto hidden">
+  <div class="absolute inset-0 bg-black/60 backdrop-blur-sm" onclick="closeModal('advancedSearchModal')"></div>
+  <div class="relative flex items-center justify-center min-h-screen p-4">
+    <div class="bg-white dark:bg-slate-800 rounded-2xl shadow-2xl w-full max-w-4xl border-t-8 border-primary overflow-hidden">
+      <div class="flex justify-between items-center p-6 border-b dark:border-slate-700">
+        <div class="flex items-center gap-3">
+          <div class="p-2 bg-primary/10 rounded-full text-primary">
+            <span class="material-symbols-outlined">search</span>
+          </div>
+          <h2 class="text-2xl font-bold text-gray-900 dark:text-white">Advanced Search</h2>
+        </div>
+        <button onclick="closeModal('advancedSearchModal')" class="text-gray-400 hover:text-red-500 transition-colors">
+          <span class="material-symbols-outlined text-2xl">cancel</span>
+        </button>
+      </div>
+      <div class="p-6 space-y-6">
+        <!-- Search Term -->
+        <div>
+          <label class="block text-sm font-bold mb-2 text-gray-700 dark:text-gray-200">Search Term</label>
+          <input id="modalSearchTerm" class="w-full bg-gray-50 dark:bg-slate-900 border border-gray-200 dark:border-slate-600 rounded-xl px-4 py-3 text-base focus:ring-2 focus:ring-primary" placeholder="Enter search term..." type="text"/>
+        </div>
+        
+        <!-- Search Type -->
+        <div>
+          <label class="block text-sm font-bold mb-2 text-gray-700 dark:text-gray-200">Search By</label>
+          <select id="modalSearchType" class="w-full bg-gray-50 dark:bg-slate-900 rounded-xl border-gray-300 dark:border-slate-600 py-3 text-base">
+            <option value="patientName">Patient Name</option>
+            <option value="insurance">Insurance</option>
+            <option value="claimType">Service Type</option>
+            <option value="agingBucket">Aging Bucket</option>
+          </select>
+        </div>
+        
+        <!-- Action Buttons -->
+        <div class="flex gap-3 pt-4 border-t dark:border-slate-700">
+          <button onclick="performAdvancedSearch()" class="flex-1 bg-primary text-white font-bold py-3 px-6 rounded-xl shadow-lg hover:opacity-90 transition-all flex items-center justify-center gap-2 text-base">
+            <span class="material-symbols-outlined">search</span>
+            Search
+          </button>
+          <button onclick="clearAdvancedSearch()" class="px-6 py-3 bg-gray-200 dark:bg-slate-700 text-gray-700 dark:text-gray-300 font-medium rounded-xl hover:bg-gray-300 dark:hover:bg-slate-600 transition-all text-base">
+            Clear
+          </button>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+
+<script>
+// MOCK GOOGLE API FOR LOCAL TESTING
+if (typeof google === 'undefined') {
+  console.warn("Running in local mode - Mocking Google API");
+  window.google = {
+    script: {
+      run: {
+        withSuccessHandler: (fn) => {
+          return {
+            withFailureHandler: (errFn) => {
+              return {
+                getCurrentUser: () => setTimeout(() => fn({name: 'Dev User', email: 'dev@test.com'}), 500),
+                getDropdownOptions: () => setTimeout(() => fn({source:['Portal','Fax'], statusCode:['Pending','Paid'], actionCode:['Follow Up','Close'], assignedTo:['User1']}), 500),
+                getAccountStatistics: () => setTimeout(() => fn({totalAssigned: 10, totalWorked: 5, totalPending: 2, totalNonWorkable: 1}), 500),
+                getAssignedAccounts: () => setTimeout(() => fn([{client:'TEST', visitId:'12345', patientName:'John Doe', balanceAmount:100}]), 500),
+                getAccountByVisitId: (id) => setTimeout(() => fn({client:'TEST', visitId:id, patientName:'John Doe', balanceAmount:100, arNotes:'Test Note', sourceSheetId:'123'}), 500),
+                getClaimHistory: (id) => setTimeout(() => fn([{actionCode:'Test Action', workedDate:'01/01/2023', statusCode:'Pending', arComments:'Test Comment', workedBy:'Dev'}]), 500),
+                getPatientInfo: (name) => setTimeout(() => fn({patientName:name, dob:'01/01/1980', primaryInsurance:'Medicare', primaryInsuranceId:'A123', remarks:'Mock Data'}), 500),
+                getProviderInfo: (c) => setTimeout(() => fn({npi:'123456'}), 500),
+                getCredentialingInfo: (c) => setTimeout(() => fn({credentialingStatus:'Active'}), 500),
+              };
+            }
+          };
+        }
+      }
+    }
+  };
+}
+
+let currentVisitId = null;
+let dropdownOptions = {};
+let allAccounts = [];
+let cachedHistory = {}; 
+let cachedVisitDetails = {};
+let searchFilterOptions = {};
+let searchResults = [];
+let cachedSearchResults = [];
+let currentAccountTab = 'assigned';
+let sessionStartTime = Date.now();
+
+document.addEventListener('DOMContentLoaded', () => {
+  initializeApp();
+  setInterval(updateClocks, 1000);
+  updateClocks();
+  
+  const savedTheme = localStorage.getItem('ar_theme') || 'theme-blue';
+  setTheme(savedTheme);
+  
+  const savedMode = localStorage.getItem('ar_mode') || 'dark';
+  setMode(savedMode);
+  
+  // Initialize tab system
+  switchAccountTab('assigned');
+  document.getElementById('searchResultsTableMain').innerHTML = '<tr><td colspan="8" class="p-8 text-center text-gray-500 italic">No search results. Perform a search to see results here.</td></tr>';
+  
+  // Show developer options only if authorized
+  if (typeof window.DEVELOPER_ACCESS !== 'undefined' && window.DEVELOPER_ACCESS) {
+    document.getElementById('developerOptionsSection').classList.remove('hidden');
+  }
+});
+
+async function initializeApp() {
+  try {
+    await Promise.all([loadCurrentUser(), loadDropdownOptions(), loadStatistics(), loadAssignedAccounts()]);
+  } catch(e) { showError('Init Failed: ' + e.message); }
+}
+
+function loadCurrentUser() { google.script.run.withSuccessHandler(u => document.getElementById('currentUser').textContent = u.name).getCurrentUser(); }
+function loadDropdownOptions() { google.script.run.withSuccessHandler(o => { dropdownOptions = o; populateDropdowns(); }).getDropdownOptions(); }
+function populateDropdowns() {
+  const setHtml = (id, opts) => document.getElementById(id).innerHTML = opts ? opts.map(s => `<option>${s}</option>`).join('') : '';
+  setHtml('source', dropdownOptions.source);
+  setHtml('statusCode', dropdownOptions.statusCode);
+  setHtml('actionCode', dropdownOptions.actionCode);
+  document.getElementById('assignedTo').innerHTML = '<option>AR</option>' + (dropdownOptions.assignedTo || []).map(s=>`<option>${s}</option>`).join('');
+}
+
+function loadStatistics() {
+  google.script.run.withSuccessHandler(s => {
+    document.getElementById('statAssigned').textContent = s.totalAssigned;
+    document.getElementById('statWorked').textContent = s.totalWorked;
+    document.getElementById('statPending').textContent = s.totalPending;
+    document.getElementById('statNonWorkable').textContent = s.totalNonWorkable;
+  }).getAccountStatistics();
+}
+
+function loadAssignedAccounts() {
+  google.script.run.withSuccessHandler(a => { allAccounts = a; renderAssignedAccounts(a); }).getAssignedAccounts();
+}
+
+function renderAssignedAccounts(accounts) {
+  const tbody = document.getElementById('assignedAccountsTable');
+  document.getElementById('assignedCount').textContent = accounts.length;
+  if(accounts.length === 0) { 
+    tbody.innerHTML = '<tr><td colspan="8" class="p-8 text-center text-gray-500 italic">No accounts assigned to you.</td></tr>'; 
+    return; 
+  }
+  tbody.innerHTML = accounts.map(a => `
+    <tr class="hover:bg-blue-50 dark:hover:bg-slate-700/50 cursor-pointer transition-colors" onclick="loadAccountDetails('${a.visitId}')">
+      <td class="px-6 py-4 whitespace-nowrap text-blue-600 font-medium text-base">${a.client}</td>
+      <td class="px-6 py-4 whitespace-nowrap text-gray-700 dark:text-gray-300 font-mono text-sm">${a.visitId}</td>
+      <td class="px-6 py-4 whitespace-nowrap text-gray-700 dark:text-gray-300 text-base">${a.patientName}</td>
+      <td class="px-6 py-4 whitespace-nowrap text-gray-500 text-base">${a.dos}</td>
+      <td class="px-6 py-4 whitespace-nowrap text-gray-500 text-sm">${a.insurance||''}</td>
+      <td class="px-6 py-4 whitespace-nowrap font-bold text-gray-700 dark:text-gray-300 text-base">${formatCurrency(a.balanceAmount)}</td>
+      <td class="px-6 py-4 whitespace-nowrap" onclick="event.stopPropagation()">
+        <input class="bg-white dark:bg-slate-700 border border-gray-200 dark:border-slate-600 rounded-md w-32 text-sm p-2 focus:ring-2 focus:ring-primary" value="${a.remarks||''}" onchange="updateRemarks('${a.visitId}', this.value)" placeholder="Add remark...">
+      </td>
+      <td class="px-6 py-4 whitespace-nowrap text-right">
+        <button onclick="showVisitDetailsModal('${a.visitId}');event.stopPropagation()" class="text-gray-400 hover:text-primary transition-colors">
+          <span class="material-symbols-outlined text-lg">visibility</span>
+        </button>
+      </td>
+    </tr>`).join('');
+}
+
+// Visit ID Search (Default)
+function handleVisitIdSearch(event) {
+  if (event.key === 'Enter') {
+    performVisitIdSearch();
+  }
+}
+
+function performVisitIdSearch() {
+  const visitId = document.getElementById('visitIdSearchInput').value.trim();
+  if (!visitId) {
+    showError('Please enter a Visit ID');
+    return;
+  }
+  
+  trackActivity('VISIT_ID_SEARCH', visitId);
+  
+  google.script.run
+    .withSuccessHandler(results => {
+      if (results && results.length > 0) {
+        cachedSearchResults = results;
+        displaySearchResultsInTab(results);
+        switchAccountTab('results');
+        showSuccess(`Found ${results.length} result(s)`);
+      } else {
+        showError('No account found with this Visit ID');
+      }
+    })
+    .withFailureHandler(e => {
+      showError('Search failed: ' + e.message);
+    })
+    .searchAccounts(visitId, 'visitId', {});
+}
+
+// Advanced Search Functions
+function showAdvancedSearchModal() {
+  document.getElementById('advancedSearchModal').classList.remove('hidden');
+  trackActivity('SEARCH_MODAL_OPENED', 'Advanced search modal opened');
+}
+
+function performAdvancedSearch() {
+  const searchTerm = document.getElementById('modalSearchTerm').value.trim();
+  const searchType = document.getElementById('modalSearchType').value;
+  
+  if (!searchTerm) {
+    showError('Please enter a search term');
+    return;
+  }
+  
+  // Close modal
+  closeModal('advancedSearchModal');
+  
+  // Show loading in results tab
+  document.getElementById('searchResultsTableMain').innerHTML = '<tr><td colspan="8" class="p-8 text-center"><div class="loading mx-auto"></div></td></tr>';
+  switchAccountTab('results');
+  
+  trackActivity('SEARCH_PERFORMED', JSON.stringify({type: searchType, term: searchTerm}));
+  
+  google.script.run
+    .withSuccessHandler(results => {
+      cachedSearchResults = results;
+      displaySearchResultsInTab(results);
+      showSuccess(`Found ${results.length} result(s)`);
+    })
+    .withFailureHandler(e => {
+      showError('Search failed: ' + e.message);
+      document.getElementById('searchResultsTableMain').innerHTML = '<tr><td colspan="8" class="p-8 text-center text-gray-500">Search failed</td></tr>';
+    })
+    .searchAccounts(searchTerm, searchType, {});
+}
+
+function displaySearchResultsInTab(results) {
+  const tbody = document.getElementById('searchResultsTableMain');
+  const countEl = document.getElementById('resultsCount');
+  const countDisplay = document.getElementById('resultsCountDisplay');
+  
+  if (results.length === 0) {
+    tbody.innerHTML = '<tr><td colspan="8" class="p-8 text-center text-gray-500 italic">No results found</td></tr>';
+    countEl.textContent = '0';
+    countEl.classList.add('hidden');
+    countDisplay.textContent = '0';
+    return;
+  }
+  
+  countEl.textContent = results.length;
+  countEl.classList.remove('hidden');
+  countDisplay.textContent = results.length;
+  
+  tbody.innerHTML = results.map(a => `
+    <tr class="hover:bg-blue-50 dark:hover:bg-slate-700/50 cursor-pointer transition-colors" onclick="loadAccountDetails('${a.visitId}')">
+      <td class="px-6 py-4 whitespace-nowrap text-blue-600 font-medium text-base">${a.client}</td>
+      <td class="px-6 py-4 whitespace-nowrap text-gray-700 dark:text-gray-300 font-mono text-sm">${a.visitId}</td>
+      <td class="px-6 py-4 whitespace-nowrap text-gray-700 dark:text-gray-300 text-base">${a.patientName}</td>
+      <td class="px-6 py-4 whitespace-nowrap text-gray-500 text-base">${a.dos}</td>
+      <td class="px-6 py-4 whitespace-nowrap text-gray-500 text-sm">${a.insurance||''}</td>
+      <td class="px-6 py-4 whitespace-nowrap font-bold text-gray-700 dark:text-gray-300 text-base">${formatCurrency(a.balanceAmount)}</td>
+      <td class="px-6 py-4 whitespace-nowrap" onclick="event.stopPropagation()">
+        <input class="bg-white dark:bg-slate-700 border border-gray-200 dark:border-slate-600 rounded-md w-32 text-sm p-2 focus:ring-2 focus:ring-primary" value="${a.remarks||''}" onchange="updateRemarks('${a.visitId}', this.value)" placeholder="Add remark...">
+      </td>
+      <td class="px-6 py-4 whitespace-nowrap text-right">
+        <button onclick="showVisitDetailsModal('${a.visitId}');event.stopPropagation()" class="text-gray-400 hover:text-primary transition-colors">
+          <span class="material-symbols-outlined text-lg">visibility</span>
+        </button>
+      </td>
+    </tr>`).join('');
+}
+
+function switchAccountTab(tab) {
+  currentAccountTab = tab;
+  const assignedTab = document.getElementById('tabAssigned');
+  const resultsTab = document.getElementById('tabResults');
+  const assignedTable = document.getElementById('assignedAccountsTable');
+  const resultsTable = document.getElementById('searchResultsTableMain');
+  const resultsActions = document.getElementById('resultsTabActions');
+  
+  if (tab === 'assigned') {
+    assignedTab.classList.add('border-primary', 'text-primary', 'bg-white', 'dark:bg-slate-800');
+    assignedTab.classList.remove('border-transparent', 'text-gray-500', 'dark:text-gray-400');
+    resultsTab.classList.remove('border-primary', 'text-primary', 'bg-white', 'dark:bg-slate-800');
+    resultsTab.classList.add('border-transparent', 'text-gray-500', 'dark:text-gray-400');
+    
+    if (assignedTable) assignedTable.style.display = '';
+    if (resultsTable) resultsTable.style.display = 'none';
+    if (resultsActions) resultsActions.style.display = 'none';
+  } else {
+    resultsTab.classList.add('border-primary', 'text-primary', 'bg-white', 'dark:bg-slate-800');
+    resultsTab.classList.remove('border-transparent', 'text-gray-500', 'dark:text-gray-400');
+    assignedTab.classList.remove('border-primary', 'text-primary', 'bg-white', 'dark:bg-slate-800');
+    assignedTab.classList.add('border-transparent', 'text-gray-500', 'dark:text-gray-400');
+    
+    if (assignedTable) assignedTable.style.display = 'none';
+    if (resultsTable) resultsTable.style.display = '';
+    if (resultsActions) resultsActions.style.display = '';
+    
+    // Display cached results if available
+    if (cachedSearchResults.length > 0) {
+      displaySearchResultsInTab(cachedSearchResults);
+    }
+  }
+}
+
+function clearSearchResults() {
+  cachedSearchResults = [];
+  document.getElementById('searchResultsTableMain').innerHTML = '<tr><td colspan="8" class="p-8 text-center text-gray-500 italic">No search results. Perform a search to see results here.</td></tr>';
+  document.getElementById('resultsCount').textContent = '0';
+  document.getElementById('resultsCount').classList.add('hidden');
+  document.getElementById('resultsCountDisplay').textContent = '0';
+  document.getElementById('visitIdSearchInput').value = '';
+  switchAccountTab('assigned');
+  showSuccess('Search results cleared');
+  trackActivity('SEARCH_CLEARED', 'Search results cleared');
+}
+
+function clearAdvancedSearch() {
+  document.getElementById('modalSearchTerm').value = '';
+  document.getElementById('modalSearchType').value = 'patientName';
+}
+
+
+function trackActivity(action, details, visitId = '') {
+  const duration = Date.now() - sessionStartTime;
+  const browser = navigator.userAgent;
+  const page = 'Index';
+  
+  // Enhanced tracking with more context
+  const trackingData = {
+    action: action,
+    details: typeof details === 'string' ? details : JSON.stringify(details),
+    duration: duration + 'ms',
+    page: page,
+    visitId: visitId || currentVisitId || '',
+    userAgent: browser,
+    timestamp: new Date().toISOString()
+  };
+  
+  // Send to backend for logging
+  google.script.run
+    .withFailureHandler(err => console.error('Tracking error:', err))
+    .logActivity(action, trackingData, 'SUCCESS');
+  
+  console.log(`[Activity] ${action}: ${details} (${duration}ms)`);
+}
+
+function loadAccountDetails(visitId) {
+  if(!visitId) return;
+  currentVisitId = visitId;
+  
+  // Show sections
+  document.getElementById('accountDetailsSection').classList.remove('hidden');
+  document.getElementById('claimHistorySection').classList.remove('hidden');
+  document.getElementById('workFormSection').classList.remove('hidden');
+  
+  // Scroll to view
+  document.getElementById('accountDetailsSection').scrollIntoView({ behavior: 'smooth' });
+  
+  // Clear cached history for new search
+  cachedHistory[visitId] = null;
+  document.getElementById('claimHistory').innerHTML = '<p class="text-gray-400 italic col-span-full">Loading history...</p>';
+
+  // --- NEW PRE-FETCHING LOGIC STARTS HERE ---
+  // 1. Fetch main account details (acc)
+  google.script.run.withSuccessHandler(acc => {
+    if(!acc) return showError('Visit ID not found');
+    displayAccountDetails(acc);
+    
+    // 2. Use the fetched account to immediately trigger the patient details fetch
+    google.script.run.withSuccessHandler(pat => {
+        // Store both account and patient data together in the cache
+        cachedVisitDetails[visitId] = { acc: acc, pat: pat };
+        console.log(`Visit Details for ${visitId} pre-fetched and cached.`);
+    }).getPatientInfo(acc.patientName);
+    
+    // Pre-fetch Provider Info and Credentialing Info
+    google.script.run.withSuccessHandler(provider => {
+      if (provider && cachedVisitDetails[visitId]) {
+        cachedVisitDetails[visitId].provider = provider;
+      }
+    }).getProviderInfo(acc.client);
+    
+    google.script.run.withSuccessHandler(cred => {
+      if (cred && cachedVisitDetails[visitId]) {
+        cachedVisitDetails[visitId].cred = cred;
+      }
+    }).getCredentialingInfo(acc.client);
+    // --- NEW PRE-FETCHING LOGIC ENDS HERE ---
+    
+    // Populate form fields (original logic)
+    document.getElementById('notes').value = acc.arNotes || '';
+    document.getElementById('statusCode').value = acc.statusCode || 'Pending';
+    document.getElementById('actionCode').value = acc.actionCode || 'Follow Up';
+    document.getElementById('assignedTo').value = acc.assignedTo || 'AR Assistance';
+    document.getElementById('followupDate').value = formatDateForInput(acc.followupDate);
+    
+    // Populate remarks if Non-Workable
+    if (acc.statusCode === 'Non-Workable') {
+      document.getElementById('remarks').value = acc.remarks || '';
+      document.getElementById('remarksFieldForNonWorkable').classList.remove('hidden');
+    } else {
+      document.getElementById('remarks').value = '';
+      document.getElementById('remarksFieldForNonWorkable').classList.add('hidden');
+    }
+    
+    // Fetch FULL history (original logic)
+    google.script.run.withSuccessHandler(fullData => {
+       cachedHistory[visitId] = fullData; // Cache it
+       renderClaimHistoryPreview(fullData.slice(0, 5)); // Show last 5
+    }).getClaimHistory(visitId);
+    
+  }).getAccountByVisitId(visitId);
+}
+
+function displayAccountDetails(a) {
+  // Use text-lg for large values, text-sm for labels (Matches Requested UI)
+  const field = (lbl, val, col='text-gray-900 dark:text-white', size='text-lg') => `
+    <div class="flex flex-col">
+      <span class="text-[10px] uppercase font-bold text-gray-400 mb-1 tracking-wide">${lbl}</span>
+      <span class="${size} font-bold ${col} break-words">${val||'-'}</span>
+    </div>`;
+
+  document.getElementById('accountDetails').innerHTML = `
+    ${field('Client', a.client, 'text-primary', 'text-xl')}
+    ${field('State', a.state)}
+    <div class="flex flex-col">
+      <span class="text-[10px] uppercase font-bold text-gray-400 mb-1 tracking-wide">Visit ID (Click for Info)</span>
+      <button onclick="showVisitDetailsModal('${a.visitId}')" class="text-lg font-extrabold text-blue-500 hover:text-blue-700 hover:underline text-left bg-blue-50 dark:bg-blue-900/30 px-2 py-1 rounded-md transition-colors border border-blue-100 dark:border-blue-800">${a.visitId}</button>
+    </div>
+    ${field('Patient Name', a.patientName, 'text-gray-900 dark:text-white', 'text-lg')}
+    ${field('DOS', a.dos)}
+    ${field('Insurance', a.insurance, 'text-blue-600 dark:text-blue-400')}
+    ${field('Billed Amount', formatCurrency(a.billedAmount))}
+    ${field('Balance Amount', formatCurrency(a.balanceAmount), 'text-green-600 dark:text-green-400', 'text-lg')}
+    ${field('Type', `<span class="px-2 py-0.5 rounded bg-gray-100 dark:bg-slate-700 text-lg">${a.type||'N/A'}</span>`)}
+    ${field('Claim Type', a.claimType)}
+    ${field('Aging Days', a.agingDays)}
+    ${field('Aging Bucket', a.agingBucket)}
+    ${field('Allocated User', a.allocatedUser, 'text-purple-600')}
+    ${field('Allocation Date', a.allocationDate)}
+  `;
+}
+
+// --------------------------------------------------------
+// VISIT DETAILS (POPUP) - FULLY IMPLEMENTED
+// --------------------------------------------------------
+// --------------------------------------------------------
+// VISIT DETAILS (POPUP) - MODIFIED FOR CACHING
+// --------------------------------------------------------
+function showVisitDetailsModal(id) {
+  document.getElementById('visitDetailsModal').classList.remove('hidden');
+  document.getElementById('visitDetailsContent').innerHTML = '<div class="flex justify-center py-10"><div class="loading"></div></div>';
+  
+  // CHECK THE CACHE FIRST (The Pre-fetched data)
+  const cachedData = cachedVisitDetails[id];
+  
+  if (cachedData && cachedData.acc && cachedData.pat && cachedData.provider && cachedData.cred) {
+    // Data is in the cache: DISPLAY INSTANTLY
+    displayVisitDetails(cachedData.acc, cachedData.pat, cachedData.provider, cachedData.cred);
+    console.log(`Visit Details for ${id} loaded from cache.`);
+    return;
+  }
+
+  // FALLBACK: Data not ready or not found in cache, use original fetching logic
+  console.log(`Visit Details for ${id} loading from backend (cache miss/not ready).`);
+  Promise.all([ 
+    new Promise(res => google.script.run.withSuccessHandler(res).getAccountByVisitId(id)) 
+  ]).then(([acc]) => {
+    // Fetch all related data
+    Promise.all([
+      new Promise(res => google.script.run.withSuccessHandler(res).getPatientInfo(acc.patientName)),
+      new Promise(res => google.script.run.withSuccessHandler(res).getProviderInfo(acc.client)),
+      new Promise(res => google.script.run.withSuccessHandler(res).getCredentialingInfo(acc.client))
+    ]).then(([pat, provider, cred]) => {
+      displayVisitDetails(acc, pat, provider, cred);
+      // Update the cache
+      cachedVisitDetails[id] = { acc: acc, pat: pat, provider: provider, cred: cred }; 
+    });
+  });
+}
+
+function displayVisitDetails(acc, pat, provider, cred) {
+  const v = (val) => val || 'N/A';
+  const box = (title, icon, content) => `
+    <div class="bg-gray-50 dark:bg-slate-700/50 p-5 rounded-xl border border-gray-100 dark:border-slate-600">
+      <div class="flex items-center gap-2 mb-4 text-primary border-b border-gray-200 dark:border-slate-600 pb-2">
+        <span class="material-symbols-outlined">${icon}</span><h4 class="font-bold uppercase text-sm tracking-wide">${title}</h4>
+      </div>
+      <div class="space-y-3 text-sm">${content}</div>
+    </div>`;
+
+  document.getElementById('visitDetailsContent').innerHTML = `
+    <div class="space-y-6">
+      <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+        ${box('Patient Details', 'person', `
+           <div class="flex justify-between"><span class="text-gray-500">Name</span><span class="font-bold dark:text-white text-right">${v(pat?.patientName || acc.patientName)}</span></div>
+           <div class="flex justify-between"><span class="text-gray-500">DOB</span><span class="font-bold dark:text-white">${v(pat?.dob)}</span></div>
+        `)}
+        
+        ${box('Primary Insurance', 'health_and_safety', `
+           <div class="flex justify-between"><span class="text-gray-500">Payer</span><span class="font-bold dark:text-white text-right">${v(pat?.primaryInsurance || acc.insurance)}</span></div>
+           <div class="flex justify-between"><span class="text-gray-500">Member ID</span><span class="font-mono bg-white dark:bg-slate-600 px-2 rounded text-xs">${v(pat?.primaryInsuranceId)}</span></div>
+           <div class="flex justify-between"><span class="text-gray-500">Eff. Date</span><span>${v(pat?.peffectiveDate)}</span></div>
+        `)}
+        
+        ${box('Secondary Insurance', 'policy', `
+           <div class="flex justify-between"><span class="text-gray-500">Payer</span><span class="font-bold dark:text-white text-right">${v(pat?.secondaryInsurance)}</span></div>
+           <div class="flex justify-between"><span class="text-gray-500">Member ID</span><span class="font-mono bg-white dark:bg-slate-600 px-2 rounded text-xs">${v(pat?.secondaryInsuranceId)}</span></div>
+           <div class="flex justify-between"><span class="text-gray-500">Eff. Date</span><span>${v(pat?.seffectiveDate)}</span></div>
+        `)}
+        
+        ${box('Provider Info', 'business', `
+           <div class="flex justify-between"><span class="text-gray-500">Facility Name</span><span class="font-bold dark:text-white text-right">${v(provider?.name)}</span></div>
+           <div class="flex justify-between"><span class="text-gray-500">NPI</span><span class="font-mono bg-white dark:bg-slate-600 px-2 rounded text-xs">${v(provider?.npi)}</span></div>
+           <div class="flex justify-between"><span class="text-gray-500">TAX</span><span class="font-mono bg-white dark:bg-slate-600 px-2 rounded text-xs">${v(provider?.tax)}</span></div>
+           <div class="flex justify-between"><span class="text-gray-500">PTAN</span><span class="font-mono bg-white dark:bg-slate-600 px-2 rounded text-xs">${v(provider?.ptan)}</span></div>
+           <div class="flex justify-between"><span class="text-gray-500">Address</span><span class="text-right text-xs">${v(provider?.address)}</span></div>
+        `)}
+        
+        ${box('Credentialing Info', 'verified_user', `
+           <div class="flex justify-between"><span class="text-gray-500">Payer</span><span class="font-bold dark:text-white text-right">${v(cred?.payer)}</span></div>
+           <div class="flex justify-between"><span class="text-gray-500">Credentialing Status</span><span class="font-bold dark:text-white">${v(cred?.credentialingStatus)}</span></div>
+           <div class="flex justify-between"><span class="text-gray-500">W9 Status</span><span>${v(cred?.w9Status)}</span></div>
+           <div class="flex justify-between"><span class="text-gray-500">W9 Updated Date</span><span>${v(cred?.w9UpdatedDate)}</span></div>
+        `)}
+        
+        ${box('Remarks', 'comment', `
+           <p class="italic text-gray-600 dark:text-gray-300 leading-relaxed">${v(pat?.remarks)}</p>
+        `)}
+      </div>
+    </div>`;
+}
+
+// --------------------------------------------------------
+// CLAIM HISTORY LOGIC (OPTIMIZED & TIMELINE)
+// --------------------------------------------------------
+
+function renderClaimHistoryPreview(history) {
+  const div = document.getElementById('claimHistory');
+  if(!history || !history.length) { div.innerHTML = '<p class="text-gray-400 italic col-span-full text-center py-4">No recent history.</p>'; return; }
+  
+  const colors = ['blue', 'purple', 'emerald', 'amber', 'rose'];
+  div.innerHTML = history.map((item, i) => {
+    const c = colors[i%colors.length];
+    return `<div class="p-4 rounded-xl bg-white dark:bg-slate-700 border border-gray-100 dark:border-slate-600 shadow-sm hover:shadow-md transition-shadow">
+      <div class="flex justify-between items-start mb-2">
+        <span class="inline-flex items-center px-2 py-0.5 rounded text-xs font-bold bg-${c}-100 text-${c}-800 dark:bg-${c}-900 dark:text-${c}-200">${item.actionCode}</span>
+        <span class="text-[10px] text-gray-400">${item.workedDate}</span>
+      </div>
+      <p class="text-gray-600 dark:text-gray-300 font-medium text-xs mb-1 line-clamp-1" title="${item.statusCode}">${item.statusCode}</p>
+      <p class="text-[10px] text-gray-400 truncate">By: ${item.workedBy}</p>
+    </div>`;
+  }).join('');
+}
+
+function showFullHistoryModal() {
+  if(!currentVisitId) return showError("Select a visit first");
+  if(!cachedHistory[currentVisitId]) return showError("History loading..."); // Should be ready from initial fetch
+  
+  const data = cachedHistory[currentVisitId];
+  document.getElementById('historyVisitIdDisplay').textContent = currentVisitId;
+  document.getElementById('fullHistoryModal').classList.remove('hidden');
+  
+  const timeline = document.getElementById('historyTimeline');
+  
+  if(!data.length) { 
+    timeline.innerHTML = '<p class="text-center text-gray-500 py-10">No history available.</p>'; 
+    return; 
+  }
+  
+  // Render Vertical Timeline with requested UI
+  const colors = ['blue', 'purple', 'teal', 'indigo'];
+  timeline.innerHTML = data.map((item, i) => {
+    const c = colors[i%colors.length];
+    return `
+    <div class="timeline-wrapper pb-8 last:pb-0 relative">
+      <div class="timeline-dot border-${c}-500 text-${c}-600 dark:text-${c}-400">
+        <span class="material-symbols-outlined text-sm">history</span>
+      </div>
+      <div class="bg-white dark:bg-slate-800 p-5 rounded-xl border border-gray-100 dark:border-slate-700 shadow-sm hover:shadow-md transition-all">
+        <div class="flex justify-between items-center mb-3">
+           <h4 class="font-bold text-gray-900 dark:text-white text-lg">${item.actionCode}</h4>
+           <span class="text-xs font-mono text-gray-400 bg-gray-100 dark:bg-slate-700 px-2 py-1 rounded">${item.workedDate}</span>
+        </div>
+        <div class="flex flex-wrap gap-2 mb-4">
+           <span class="px-2 py-1 bg-red-100 text-red-800 dark:bg-red-900/30 dark:text-red-200 rounded text-xs font-bold border border-red-200 dark:border-red-800">Status: ${item.statusCode}</span>
+           <span class="px-2 py-1 bg-blue-100 text-blue-800 dark:bg-blue-900/30 dark:text-blue-200 rounded text-xs font-bold border border-blue-200 dark:border-blue-800">Assigned: ${item.assignedTo}</span>
+           <span class="px-2 py-1 bg-purple-100 text-purple-800 dark:bg-purple-900/30 dark:text-purple-200 rounded text-xs font-bold border border-purple-200 dark:border-purple-800">By: ${item.workedBy}</span>
+        </div>
+        <div class="text-gray-600 dark:text-gray-300 text-sm bg-gray-50 dark:bg-slate-900/50 p-3 rounded-lg border border-gray-100 dark:border-slate-700 italic">
+          "${item.arComments || 'No comments provided.'}"
+        </div>
+      </div>
+    </div>`;
+  }).join('');
+}
+
+// --- MODALS & EXPORT ---
+function showAccountsModal(type) {
+  const titles = {'assigned':'Assigned','worked':'Worked','pending':'Pending','nonWorkable':'Non-Workable'};
+  document.getElementById('modalTitle').textContent = `Total ${titles[type]} Accounts`;
+  document.getElementById('accountsModal').classList.remove('hidden');
+  document.getElementById('modalLoading').classList.remove('hidden');
+  document.getElementById('modalAccountsTableBody').innerHTML = '';
+  document.getElementById('modalExportBtn').onclick = () => exportAccounts(type);
+  google.script.run.withSuccessHandler(data => {
+    document.getElementById('modalLoading').classList.add('hidden');
+    document.getElementById('modalCount').textContent = `${data.length} Records`;
+    document.getElementById('modalAccountsTableBody').innerHTML = data.map(r => `
+      <tr class="hover:bg-gray-50 dark:hover:bg-slate-700/50">
+        <td class="px-6 py-3 text-sm text-blue-500 font-medium">${r.client}</td>
+        <td class="px-6 py-3 text-sm dark:text-white font-mono text-xs">${r.visitId}</td>
+        <td class="px-6 py-3 text-sm text-gray-600 dark:text-gray-300">${r.patientName}</td>
+        <td class="px-6 py-3 text-sm"><span class="px-2 py-1 bg-gray-100 dark:bg-slate-700 rounded text-xs font-semibold">${r.statusCode}</span></td>
+        <td class="px-6 py-3 text-sm font-bold text-gray-700 dark:text-gray-300">${formatCurrency(r.balanceAmount)}</td>
+      </tr>`).join('');
+  }).getFilteredAccountsData(type);
+}
+
+function exportAccounts(type) {
+  google.script.run.withSuccessHandler(csv => {
+    const blob = new Blob([csv.map(r=>r.join(',')).join('\n')], {type:'text/csv'});
+    const a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = `${type}_export.csv`; a.click();
+    showSuccess('Export successful');
+  }).exportAccountsToCSV(type);
+}
+
+function toggleRemarksField() {
+  const statusCode = document.getElementById('statusCode').value;
+  const remarksField = document.getElementById('remarksFieldForNonWorkable');
+  if (statusCode === 'Non-Workable') {
+    remarksField.classList.remove('hidden');
+  } else {
+    remarksField.classList.add('hidden');
+    document.getElementById('remarks').value = '';
+  }
+}
+
+function saveWorkDetails(e) {
+  e.preventDefault();
+  if(!currentVisitId) return showError('Select a Visit ID first');
+  const btn = document.getElementById('saveButtonText');
+  const spin = document.getElementById('saveButtonLoading');
+  btn.classList.add('hidden'); spin.classList.remove('hidden');
+  
+  const statusCode = document.getElementById('statusCode').value;
+  const form = {
+    notes: document.getElementById('notes').value,
+    source: document.getElementById('source').value,
+    statusCode: statusCode,
+    actionCode: document.getElementById('actionCode').value,
+    assignedTo: document.getElementById('assignedTo').value,
+    followupDate: document.getElementById('followupDate').value
+  };
+  
+  // Include remarks if status is Non-Workable
+  if (statusCode === 'Non-Workable') {
+    form.remarks = document.getElementById('remarks').value;
+  }
+  
+  google.script.run.withSuccessHandler(() => {
+    btn.classList.remove('hidden'); spin.classList.add('hidden');
+    showSuccess('Changes saved successfully');
+    loadStatistics(); loadAssignedAccounts(); 
+    // Re-load details to refresh history
+    loadAccountDetails(currentVisitId);
+  }).withFailureHandler(e => {
+    btn.classList.remove('hidden'); spin.classList.add('hidden');
+    showError(e.message);
+  }).updateAccountWorkForm(currentVisitId, form);
+}
+
+function updateRemarks(id, val) { google.script.run.withFailureHandler(e=>showError(e.message)).updateRemarks(id, val); }
+function closeModal(id) { document.getElementById(id).classList.add('hidden'); }
+function closeAccountsModal() { closeModal('accountsModal'); }
+function formatCurrency(n) { return '$' + parseFloat(n||0).toFixed(2).replace(/\B(?=(\d{3})+(?!\d))/g, ","); }
+function formatDateForInput(d) { if(!d) return ''; const dt=new Date(d); return `${dt.getFullYear()}-${String(dt.getMonth()+1).padStart(2,'0')}-${String(dt.getDate()).padStart(2,'0')}`; }
+
+function updateClocks() {
+  const t = new Date();
+  const f = (z) => t.toLocaleTimeString('en-US',{timeZone:z,hour:'2-digit',minute:'2-digit',hour12:false});
+  
+  const estEl = document.getElementById('timeEST');
+  if(estEl) {
+    estEl.textContent = f('America/New_York');
+    document.getElementById('timePST').textContent = f('America/Los_Angeles');
+    document.getElementById('timeCST').textContent = f('America/Chicago');
+    document.getElementById('timeIST').textContent = f('Asia/Kolkata');
+  }
+}
+
+function showToast(msg, type='success') {
+  const div = document.createElement('div'); div.className = `toast ${type}`;
+  div.innerHTML = `<span class="material-symbols-outlined mr-2">${type==='success'?'check_circle':'error'}</span>${msg}`;
+  document.getElementById('toast-container').appendChild(div);
+  requestAnimationFrame(() => div.classList.add('show'));
+  setTimeout(() => { div.classList.remove('show'); setTimeout(() => div.remove(), 300); }, 3000);
+}
+function showSuccess(m) { showToast(m, 'success'); }
+function showError(m) { showToast(m, 'error'); }
+
+// THEME LOGIC
+function toggleSettingsModal() { 
+  const m = document.getElementById('settingsModal'); 
+  const p = document.getElementById('settingsPanel');
+  if(m.classList.contains('hidden')) { m.classList.remove('hidden'); setTimeout(()=>p.classList.remove('translate-x-full'),10); }
+  else { p.classList.add('translate-x-full'); setTimeout(()=>m.classList.add('hidden'),300); }
+}
+function setTheme(themeClass) { 
+  document.body.classList.remove('theme-blue', 'theme-purple', 'theme-teal', 'theme-rose');
+  document.body.classList.add(themeClass);
+  localStorage.setItem('ar_theme', themeClass);
+}
+function setMode(mode) {
+  const btnLight = document.getElementById('btnLight');
+  const btnDark = document.getElementById('btnDark');
+  
+  if (mode === 'dark') {
+    document.documentElement.classList.add('dark');
+    btnDark.classList.add('bg-white', 'text-black', 'shadow-sm');
+    btnDark.classList.remove('text-gray-500');
+    btnLight.classList.remove('bg-white', 'text-black', 'shadow-sm');
+    btnLight.classList.add('text-gray-500');
+  } else {
+    document.documentElement.classList.remove('dark');
+    btnLight.classList.add('bg-white', 'text-black', 'shadow-sm');
+    btnLight.classList.remove('text-gray-500');
+    btnDark.classList.remove('bg-white', 'text-black', 'shadow-sm');
+    btnDark.classList.add('text-gray-500');
+  }
+  localStorage.setItem('ar_mode', mode);
+}
+
+// Developer Modal Functions
+let devAllLogs = [];
+let devFilteredLogs = [];
+let devIsAuthenticated = false;
+
+function showDeveloperModal() {
+  document.getElementById('developerModal').classList.remove('hidden');
+  // Reset to login screen
+  devIsAuthenticated = false;
+  document.getElementById('devLoginScreen').classList.remove('hidden');
+  document.getElementById('devDashboardScreen').classList.add('hidden');
+  document.getElementById('devLoginUsername').value = '';
+  document.getElementById('devLoginPassword').value = '';
+  document.getElementById('devLoginError').classList.add('hidden');
+}
+
+function closeDeveloperModal() {
+  document.getElementById('developerModal').classList.add('hidden');
+  // Reset authentication
+  devIsAuthenticated = false;
+  document.getElementById('devLoginScreen').classList.remove('hidden');
+  document.getElementById('devDashboardScreen').classList.add('hidden');
+}
+
+function handleDeveloperLogin(e) {
+  e.preventDefault();
+  const username = document.getElementById('devLoginUsername').value;
+  const password = document.getElementById('devLoginPassword').value;
+  const btnText = document.getElementById('devLoginBtnText');
+  const btnLoading = document.getElementById('devLoginBtnLoading');
+  const errorDiv = document.getElementById('devLoginError');
+  
+  btnText.classList.add('hidden');
+  btnLoading.classList.remove('hidden');
+  errorDiv.classList.add('hidden');
+  
+  google.script.run
+    .withSuccessHandler(result => {
+      if (result) {
+        devIsAuthenticated = true;
+        document.getElementById('devLoginScreen').classList.add('hidden');
+        document.getElementById('devDashboardScreen').classList.remove('hidden');
+        loadDeveloperDashboard();
+      } else {
+        errorDiv.textContent = 'Invalid credentials. Please try again.';
+        errorDiv.classList.remove('hidden');
+        btnText.classList.remove('hidden');
+        btnLoading.classList.add('hidden');
+      }
+    })
+    .withFailureHandler(err => {
+      errorDiv.textContent = 'Login failed: ' + err.message;
+      errorDiv.classList.remove('hidden');
+      btnText.classList.remove('hidden');
+      btnLoading.classList.add('hidden');
+    })
+    .authenticateDeveloper(username, password);
+}
+
+function loadDeveloperDashboard() {
+  loadDevUsers();
+  loadDevLogs();
+  loadDevStats();
+  switchDevTab('dashboard'); // Default to dashboard tab
+}
+
+function loadDevUsers() {
+  google.script.run
+    .withSuccessHandler(users => {
+      displayDevUsers(users);
+    })
+    .withFailureHandler(err => {
+      console.error('Error loading users:', err);
+      document.getElementById('devUsersTable').innerHTML = '<p class="text-red-400 text-center py-8">Error loading user data</p>';
+    })
+    .getUserStatistics();
+}
+
+function displayDevUsers(users) {
+  const activeCount = users.filter(u => u.isActive).length;
+  document.getElementById('devUserCount').textContent = `${users.length} users (${activeCount} active)`;
+  document.getElementById('devStatActiveUsers').textContent = activeCount;
+  
+  const container = document.getElementById('devUsersTable');
+  if (users.length === 0) {
+    container.innerHTML = '<p class="text-gray-400 text-center py-8">No user data available</p>';
+    return;
+  }
+  
+  users.sort((a, b) => new Date(b.lastSeen) - new Date(a.lastSeen));
+  
+  container.innerHTML = users.map(user => {
+    const firstSeen = user.firstSeen || 'N/A';
+    const lastSeen = user.lastSeen || 'N/A';
+    const sessions = user.sessions || 0;
+    const errors = user.errors || 0;
+    const pages = user.pages || [];
+    const isActive = user.isActive || false;
+    
+    return `
+      <div class="bg-white dark:bg-slate-700 p-4 rounded-lg border border-gray-200 dark:border-slate-600 hover:border-primary transition-all">
+        <div class="flex justify-between items-start mb-3">
+          <div class="flex-1">
+            <p class="font-bold text-gray-900 dark:text-white text-base">${user.name}</p>
+            <p class="text-xs text-gray-500 dark:text-gray-400 mt-1">${user.email}</p>
+          </div>
+          <div class="flex flex-col items-end gap-2">
+            ${isActive ? `<span class="px-2 py-1 bg-green-900/30 text-green-400 text-xs font-medium rounded-full border border-green-800">Active Now</span>` : `<span class="px-2 py-1 bg-gray-900/30 text-gray-400 text-xs font-medium rounded-full border border-gray-800">Inactive</span>`}
+            ${errors > 0 ? `<span class="px-2 py-1 bg-red-900/30 text-red-400 text-xs font-medium rounded-full border border-red-800">${errors} Errors</span>` : ''}
+          </div>
+        </div>
+        
+        <div class="grid grid-cols-2 md:grid-cols-4 gap-3 mb-3 text-xs">
+          <div class="bg-gray-50 dark:bg-slate-800 p-2 rounded-lg">
+            <p class="text-gray-500 dark:text-gray-400 mb-1">Total Actions</p>
+            <p class="text-gray-900 dark:text-white font-bold text-lg">${user.totalActions}</p>
+          </div>
+          <div class="bg-gray-50 dark:bg-slate-800 p-2 rounded-lg">
+            <p class="text-gray-500 dark:text-gray-400 mb-1">Sessions</p>
+            <p class="text-gray-900 dark:text-white font-bold text-lg">${sessions}</p>
+          </div>
+          <div class="bg-gray-50 dark:bg-slate-800 p-2 rounded-lg">
+            <p class="text-gray-500 dark:text-gray-400 mb-1">First Seen</p>
+            <p class="text-gray-900 dark:text-white font-medium text-xs">${firstSeen}</p>
+          </div>
+          <div class="bg-gray-50 dark:bg-slate-800 p-2 rounded-lg">
+            <p class="text-gray-500 dark:text-gray-400 mb-1">Last Seen</p>
+            <p class="text-gray-900 dark:text-white font-medium text-xs">${lastSeen}</p>
+          </div>
+        </div>
+        
+        ${pages.length > 0 ? `
+        <div class="mb-2 pt-2 border-t border-gray-200 dark:border-slate-600">
+          <p class="text-xs text-gray-500 dark:text-gray-400 mb-1">Pages Accessed:</p>
+          <div class="flex flex-wrap gap-1">
+            ${pages.map(page => `<span class="px-2 py-1 bg-blue-900/30 text-blue-400 text-xs rounded border border-blue-800">${page}</span>`).join('')}
+          </div>
+        </div>
+        ` : ''}
+        
+        <div class="pt-2 border-t border-gray-200 dark:border-slate-600 flex justify-between items-center">
+          <div class="flex-1">
+            <p class="text-xs text-gray-500 dark:text-gray-400 mb-1">Top Actions:</p>
+            <div class="flex flex-wrap gap-1">
+              ${Object.entries(user.actions || {})
+                .sort((a, b) => b[1] - a[1])
+                .slice(0, 8)
+                .map(([action, count]) => 
+                  `<span class="px-2 py-1 bg-slate-600 text-white text-xs rounded" title="${action}: ${count} times">${action}: ${count}</span>`
+                ).join('')}
+            </div>
+          </div>
+          <div class="flex gap-2 ml-4">
+            <button onclick="blockUserAction('${user.email}')" class="px-3 py-1 bg-red-600 hover:bg-red-700 text-white text-xs rounded transition-all" title="Block User">
+              <span class="material-symbols-outlined text-sm align-middle">block</span>
+            </button>
+            <button onclick="deleteUserLogsAction('${user.email}')" class="px-3 py-1 bg-amber-600 hover:bg-amber-700 text-white text-xs rounded transition-all" title="Delete Logs">
+              <span class="material-symbols-outlined text-sm align-middle">delete</span>
+            </button>
+          </div>
+        </div>
+      </div>
+    `;
+  }).join('');
+}
+
+function loadDevLogs() {
+  google.script.run
+    .withSuccessHandler(logs => {
+      devAllLogs = logs;
+      devFilteredLogs = logs;
+      displayDevLogs(logs);
+      updateDevStatsFromLogs(logs);
+    })
+    .withFailureHandler(err => {
+      console.error('Error loading logs:', err);
+      document.getElementById('devLogsTableBody').innerHTML = '<tr><td colspan="6" class="p-8 text-center text-red-400">Error loading logs</td></tr>';
+    })
+    .getActivityLogs(200);
+}
+
+function updateDevStatsFromLogs(logs) {
+  const errors = logs.filter(l => l.status === 'ERROR').length;
+  document.getElementById('devStatErrors').textContent = errors;
+  document.getElementById('devStatTotalActions').textContent = logs.length;
+  if (logs.length > 0) {
+    document.getElementById('devStatLastActivity').textContent = logs[0].timestamp;
+  }
+}
+
+function displayDevLogs(logs) {
+  const tbody = document.getElementById('devLogsTableBody');
+  
+  if (logs.length === 0) {
+    tbody.innerHTML = '<tr><td colspan="6" class="p-8 text-center text-gray-400">No logs available</td></tr>';
+    return;
+  }
+  
+  tbody.innerHTML = logs.map(log => {
+    const statusColor = log.status === 'ERROR' ? 'text-red-400 bg-red-900/20 border-red-800' : 
+                        log.status === 'FAILED' ? 'text-amber-400 bg-amber-900/20 border-amber-800' : 
+                        'text-green-400 bg-green-900/20 border-green-800';
+    
+    return `
+      <tr class="hover:bg-gray-50 dark:hover:bg-slate-700/50">
+        <td class="px-3 py-2 text-gray-600 dark:text-gray-300 text-xs">${log.timestamp || 'N/A'}</td>
+        <td class="px-3 py-2">
+          <div class="text-gray-900 dark:text-white font-medium text-xs">${log.name || 'Unknown'}</div>
+          <div class="text-xs text-gray-500 dark:text-gray-400">${log.email || 'N/A'}</div>
+        </td>
+        <td class="px-3 py-2">
+          <span class="px-2 py-1 bg-blue-900/30 text-blue-400 text-xs font-medium rounded border border-blue-800">
+            ${log.action || 'N/A'}
+          </span>
+        </td>
+        <td class="px-3 py-2 text-gray-600 dark:text-gray-300 max-w-md truncate text-xs" title="${log.details || ''}">${log.details || 'N/A'}</td>
+        <td class="px-3 py-2">
+          <span class="px-2 py-1 text-xs font-medium rounded border ${statusColor}">
+            ${log.status || 'SUCCESS'}
+          </span>
+        </td>
+        <td class="px-3 py-2 text-xs text-gray-500 dark:text-gray-400">
+          ${log.page || 'Index'}
+        </td>
+      </tr>
+    `;
+  }).join('');
+}
+
+function filterDevLogs() {
+  const filter = document.getElementById('devLogFilter').value;
+  
+  if (filter === 'all') {
+    devFilteredLogs = devAllLogs;
+  } else if (filter === 'ERROR') {
+    devFilteredLogs = devAllLogs.filter(l => l.status === 'ERROR' || l.status === 'FAILED');
+  } else {
+    devFilteredLogs = devAllLogs.filter(l => l.action.includes(filter));
+  }
+  
+  displayDevLogs(devFilteredLogs);
+}
+
+function loadDevStats() {
+  // Already loaded with logs and users
+}
+
+function switchDevTab(tab) {
+  // Hide all content
+  ['dashboard', 'users', 'sessions', 'logs', 'system'].forEach(t => {
+    const contentId = 'devContent' + t.charAt(0).toUpperCase() + t.slice(1);
+    const el = document.getElementById(contentId);
+    if (el) el.classList.add('hidden');
+  });
+  
+  // Reset all tabs
+  ['dashboard', 'users', 'sessions', 'logs', 'system'].forEach(t => {
+    const tabId = 'devTab' + t.charAt(0).toUpperCase() + t.slice(1);
+    const el = document.getElementById(tabId);
+    if (el) el.className = 'flex-1 px-4 py-3 font-medium text-center border-b-2 border-transparent text-gray-500 dark:text-gray-400 hover:text-primary hover:bg-gray-50 dark:hover:bg-slate-700 text-sm whitespace-nowrap';
+  });
+  
+  // Show selected
+  const contentId = 'devContent' + tab.charAt(0).toUpperCase() + tab.slice(1);
+  const tabId = 'devTab' + tab.charAt(0).toUpperCase() + tab.slice(1);
+  const contentEl = document.getElementById(contentId);
+  const tabEl = document.getElementById(tabId);
+  
+  if (contentEl) contentEl.classList.remove('hidden');
+  if (tabEl) tabEl.className = 'flex-1 px-4 py-3 font-medium text-center border-b-2 border-primary text-primary bg-gray-50 dark:bg-slate-900 text-sm whitespace-nowrap';
+  
+  // Load data for specific tabs
+  if (tab === 'dashboard') {
+    loadDevAnalytics();
+  } else if (tab === 'sessions') {
+    loadDevSessions();
+  }
+}
+
+function loadDevAnalytics() {
+  google.script.run
+    .withSuccessHandler(analytics => {
+      if (!analytics) {
+        document.getElementById('devAnalyticsContent').innerHTML = '<p class="text-red-400 text-center py-8">Error loading analytics</p>';
+        return;
+      }
+      displayDevAnalytics(analytics);
+    })
+    .withFailureHandler(err => {
+      console.error('Error loading analytics:', err);
+      document.getElementById('devAnalyticsContent').innerHTML = '<p class="text-red-400 text-center py-8">Error loading analytics</p>';
+    })
+    .getAnalyticsData();
+}
+
+function displayDevAnalytics(analytics) {
+  const container = document.getElementById('devAnalyticsContent');
+  
+  // Top actions
+  const topActionsHtml = Object.entries(analytics.topActions || {})
+    .map(([action, count]) => `
+      <div class="flex justify-between items-center p-3 bg-gray-50 dark:bg-slate-800 rounded-lg">
+        <span class="text-sm text-gray-700 dark:text-gray-300">${action}</span>
+        <span class="font-bold text-primary">${count}</span>
+      </div>
+    `).join('');
+  
+  // Top users
+  const topUsersHtml = Object.entries(analytics.topUsers || {})
+    .map(([email, count]) => `
+      <div class="flex justify-between items-center p-3 bg-gray-50 dark:bg-slate-800 rounded-lg">
+        <span class="text-sm text-gray-700 dark:text-gray-300 truncate">${email}</span>
+        <span class="font-bold text-primary">${count}</span>
+      </div>
+    `).join('');
+  
+  container.innerHTML = `
+    <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
+      <div class="bg-white dark:bg-slate-800 p-4 rounded-xl border border-gray-200 dark:border-slate-700">
+        <p class="text-xs text-gray-400 uppercase mb-2">Total Users</p>
+        <p class="text-2xl font-bold text-gray-900 dark:text-white">${analytics.totalUsers}</p>
+      </div>
+      <div class="bg-white dark:bg-slate-800 p-4 rounded-xl border border-gray-200 dark:border-slate-700">
+        <p class="text-xs text-gray-400 uppercase mb-2">Total Actions</p>
+        <p class="text-2xl font-bold text-gray-900 dark:text-white">${analytics.totalActions}</p>
+      </div>
+      <div class="bg-white dark:bg-slate-800 p-4 rounded-xl border border-gray-200 dark:border-slate-700">
+        <p class="text-xs text-gray-400 uppercase mb-2">Errors</p>
+        <p class="text-2xl font-bold text-red-500">${analytics.errors}</p>
+      </div>
+      <div class="bg-white dark:bg-slate-800 p-4 rounded-xl border border-gray-200 dark:border-slate-700">
+        <p class="text-xs text-gray-400 uppercase mb-2">Actions (24h)</p>
+        <p class="text-2xl font-bold text-green-500">${analytics.actions24h}</p>
+      </div>
+    </div>
+    
+    <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+      <div class="bg-white dark:bg-slate-800 p-4 rounded-xl border border-gray-200 dark:border-slate-700">
+        <h4 class="font-bold text-gray-900 dark:text-white mb-3">Top Actions</h4>
+        <div class="space-y-2 max-h-64 overflow-y-auto custom-scrollbar">
+          ${topActionsHtml || '<p class="text-gray-400 text-center py-4">No data</p>'}
+        </div>
+      </div>
+      <div class="bg-white dark:bg-slate-800 p-4 rounded-xl border border-gray-200 dark:border-slate-700">
+        <h4 class="font-bold text-gray-900 dark:text-white mb-3">Top Users</h4>
+        <div class="space-y-2 max-h-64 overflow-y-auto custom-scrollbar">
+          ${topUsersHtml || '<p class="text-gray-400 text-center py-4">No data</p>'}
+        </div>
+      </div>
+    </div>
+    
+    <div class="mt-4 bg-white dark:bg-slate-800 p-4 rounded-xl border border-gray-200 dark:border-slate-700">
+      <h4 class="font-bold text-gray-900 dark:text-white mb-3">Activity Summary</h4>
+      <div class="grid grid-cols-3 gap-4 text-sm">
+        <div>
+          <p class="text-gray-500">Last 24 Hours</p>
+          <p class="text-xl font-bold text-gray-900 dark:text-white">${analytics.actions24h}</p>
+        </div>
+        <div>
+          <p class="text-gray-500">Last 7 Days</p>
+          <p class="text-xl font-bold text-gray-900 dark:text-white">${analytics.actions7d}</p>
+        </div>
+        <div>
+          <p class="text-gray-500">Last 30 Days</p>
+          <p class="text-xl font-bold text-gray-900 dark:text-white">${analytics.actions30d}</p>
+        </div>
+      </div>
+    </div>
+  `;
+}
+
+function loadDevSessions() {
+  google.script.run
+    .withSuccessHandler(sessions => {
+      displayDevSessions(sessions);
+    })
+    .withFailureHandler(err => {
+      console.error('Error loading sessions:', err);
+      document.getElementById('devSessionsTable').innerHTML = '<p class="text-red-400 text-center py-8">Error loading sessions</p>';
+    })
+    .getActiveSessions();
+}
+
+function displayDevSessions(sessions) {
+  const container = document.getElementById('devSessionsTable');
+  
+  if (sessions.length === 0) {
+    container.innerHTML = '<p class="text-gray-400 text-center py-8">No active sessions</p>';
+    return;
+  }
+  
+  container.innerHTML = sessions.map(session => `
+    <div class="bg-white dark:bg-slate-700 p-4 rounded-lg border border-gray-200 dark:border-slate-600">
+      <div class="flex justify-between items-start mb-2">
+        <div class="flex-1">
+          <p class="font-bold text-gray-900 dark:text-white text-sm">${session.name || 'Unknown'}</p>
+          <p class="text-xs text-gray-500 dark:text-gray-400">${session.email}</p>
+        </div>
+        <span class="px-2 py-1 bg-green-900/30 text-green-400 text-xs font-medium rounded-full border border-green-800">
+          Active
+        </span>
+      </div>
+      <div class="grid grid-cols-2 gap-2 text-xs mt-3">
+        <div>
+          <p class="text-gray-500 dark:text-gray-400">Session ID</p>
+          <p class="text-gray-900 dark:text-white font-mono text-xs">${session.sessionId}</p>
+        </div>
+        <div>
+          <p class="text-gray-500 dark:text-gray-400">Last Activity</p>
+          <p class="text-gray-900 dark:text-white">${session.lastActivity}</p>
+        </div>
+        <div>
+          <p class="text-gray-500 dark:text-gray-400">Page</p>
+          <p class="text-gray-900 dark:text-white">${session.page}</p>
+        </div>
+        <div>
+          <p class="text-gray-500 dark:text-gray-400">Action</p>
+          <p class="text-gray-900 dark:text-white">${session.action}</p>
+        </div>
+      </div>
+    </div>
+  `).join('');
+}
+
+function blockUserAction(email) {
+  if (!confirm(`Are you sure you want to block user: ${email}?`)) return;
+  
+  google.script.run
+    .withSuccessHandler(result => {
+      if (result.success) {
+        showSuccess(result.message);
+        loadDevUsers();
+      } else {
+        showError(result.message);
+      }
+    })
+    .withFailureHandler(err => {
+      showError('Error blocking user: ' + err.message);
+    })
+    .blockUser(email);
+}
+
+function deleteUserLogsAction(email) {
+  if (!confirm(`Are you sure you want to delete all logs for user: ${email}? This action cannot be undone.`)) return;
+  
+  google.script.run
+    .withSuccessHandler(result => {
+      if (result.success) {
+        showSuccess(result.message);
+        loadDevUsers();
+        loadDevLogs();
+      } else {
+        showError(result.message);
+      }
+    })
+    .withFailureHandler(err => {
+      showError('Error deleting logs: ' + err.message);
+    })
+    .deleteUserLogs(email);
+}
+
+function refreshDeveloperData() {
+  loadDeveloperDashboard();
+  if (document.getElementById('devContentDashboard') && !document.getElementById('devContentDashboard').classList.contains('hidden')) {
+    loadDevAnalytics();
+  }
+  if (document.getElementById('devContentSessions') && !document.getElementById('devContentSessions').classList.contains('hidden')) {
+    loadDevSessions();
+  }
+}
+</script>
+</div>
+</body>
+</html>
