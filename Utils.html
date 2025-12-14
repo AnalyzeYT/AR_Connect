@@ -10,6 +10,7 @@ let cachedVisitDetails = {};
 let searchResults = [];
 let sessionStartTime = Date.now();
 
+
 document.addEventListener('DOMContentLoaded', () => {
   initializeApp();
   setInterval(updateClocks, 1000);
@@ -64,6 +65,11 @@ function trackActivity(action, details, visitId = '') {
   console.log(`[Activity] ${action}: ${details} (${duration}ms)`);
 }
 
+// ============================================
+// API CLIENT FUNCTIONS
+// These functions call Code.gs wrapper functions which then call ARConnectAPI
+// ============================================
+
 function loadCurrentUser() { 
   google.script.run.withSuccessHandler(u => {
     document.getElementById('currentUser').textContent = u.name;
@@ -76,6 +82,56 @@ function loadDropdownOptions() {
     dropdownOptions = o; 
     populateDropdowns(); 
   }).getDropdownOptions(); 
+}
+
+// JSON conversion functions (direct calls)
+function convertSheetToJSON(sheetId, sheetName, callback) {
+  google.script.run
+    .withSuccessHandler(result => {
+      if (callback) callback(result);
+    })
+    .withFailureHandler(error => {
+      showError('Error converting sheet: ' + error.message);
+      if (callback) callback({ error: error.message });
+    })
+    .convertSheetToJSON(sheetId, sheetName);
+}
+
+function convertAllClientSheetsToJSON(callback) {
+  google.script.run
+    .withSuccessHandler(result => {
+      if (callback) callback(result);
+    })
+    .withFailureHandler(error => {
+      showError('Error converting sheets: ' + error.message);
+      if (callback) callback({ error: error.message });
+    })
+    .convertAllClientSheetsToJSON();
+}
+
+function getStoredJSONData(clientName, callback) {
+  google.script.run
+    .withSuccessHandler(result => {
+      if (callback) callback(result);
+    })
+    .withFailureHandler(error => {
+      showError('Error getting JSON data: ' + error.message);
+      if (callback) callback({ error: error.message });
+    })
+    .getStoredJSONData(clientName);
+}
+
+function refreshAllJSONData(callback) {
+  google.script.run
+    .withSuccessHandler(result => {
+      if (callback) callback(result);
+      showSuccess('JSON data refreshed successfully');
+    })
+    .withFailureHandler(error => {
+      showError('Error refreshing JSON data: ' + error.message);
+      if (callback) callback({ error: error.message });
+    })
+    .refreshAllJSONData();
 }
 
 function populateDropdowns() {
