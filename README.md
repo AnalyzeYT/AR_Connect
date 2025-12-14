@@ -1,10 +1,10 @@
-# AR Connect - LAH v3.0 Advanced Edition
+# AR Connect - LAH v4.0 Advanced Edition
 
 A powerful Google Apps Script web application for managing Accounts Receivable (AR) workflows, tracking claims, and monitoring user activity with advanced analytics.
 
 ## 🌐 Live Application
 
-**Access the application:** [https://script.google.com/macros/s/AKfycbxWvxlPmC6sWATbNT3nnK-fAyFvs20GH1oGbFKOUMEs5_--Jq4lAxHcP0jnNcuyQGiY/exec](https://script.google.com/macros/s/AKfycbxWvxlPmC6sWATbNT3nnK-fAyFvs20GH1oGbFKOUMEs5_--Jq4lAxHcP0jnNcuyQGiY/exec)
+**Access the application:** [https://script.google.com/macros/s/AKfycbz2knRMU11H-1KHNMQ3hznYHcItpA_RkyMmdArUcrHcPny5TrpxgHBs5qlr0hUflkau/exec](https://script.google.com/macros/s/AKfycbz2knRMU11H-1KHNMQ3hznYHcItpA_RkyMmdArUcrHcPny5TrpxgHBs5qlr0hUflkau/exec) 
 
 ## 📋 Table of Contents
 
@@ -381,7 +381,7 @@ Proprietary - All rights reserved
 
 ## 🔗 Links
 
-- **Live Application:** [https://script.google.com/macros/s/AKfycbxWvxlPmC6sWATbNT3nnK-fAyFvs20GH1oGbFKOUMEs5_--Jq4lAxHcP0jnNcuyQGiY/exec](https://script.google.com/macros/s/AKfycbxWvxlPmC6sWATbNT3nnK-fAyFvs20GH1oGbFKOUMEs5_--Jq4lAxHcP0jnNcuyQGiY/exec)
+- **Live Application:** [https://script.google.com/macros/s/AKfycbz2knRMU11H-1KHNMQ3hznYHcItpA_RkyMmdArUcrHcPny5TrpxgHBs5qlr0hUflkau/exec](https://script.google.com/macros/s/AKfycbz2knRMU11H-1KHNMQ3hznYHcItpA_RkyMmdArUcrHcPny5TrpxgHBs5qlr0hUflkau/exec)
 - **Source Code:** Available in this repository
 
 ## 📞 Support
@@ -393,4 +393,5 @@ For technical support or questions, please contact the development team.
 **Version:** 3.0 Advanced Edition  
 **Last Updated:** December 2024  
 **Built with:** Google Apps Script, HTML5, CSS3, JavaScript
+
 
