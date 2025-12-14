@@ -63,6 +63,9 @@
         <button onclick="refreshAllData()" class="p-3 bg-blue-800 hover:bg-blue-900 rounded-lg transition-all">
           <span class="material-symbols-outlined text-white">refresh</span>
         </button>
+        <button onclick="closeDeveloper()" class="px-6 py-3 bg-gray-600 hover:bg-gray-700 rounded-lg font-medium transition-all">
+          Close
+        </button>
         <button onclick="logout()" class="px-6 py-3 bg-red-600 hover:bg-red-700 rounded-lg font-medium transition-all">
           Logout
         </button>
@@ -130,6 +133,10 @@
           <span class="material-symbols-outlined align-middle mr-2">settings</span>
           System Info
         </button>
+        <button onclick="switchTab('api')" id="tabApi" class="flex-1 px-6 py-4 font-medium text-center border-b-2 border-transparent text-gray-400 hover:text-white hover:bg-slate-700/50">
+          <span class="material-symbols-outlined align-middle mr-2">api</span>
+          API Management
+        </button>
       </div>
 
       <!-- Users Tab -->
@@ -178,6 +185,67 @@
               <tr><td colspan="7" class="p-10 text-center"><div class="loading mx-auto"></div></td></tr>
             </tbody>
           </table>
+        </div>
+      </div>
+
+      <!-- Access Control Tab -->
+      <div id="contentAccess" class="p-6 hidden">
+        <div class="mb-4 flex justify-between items-center">
+          <h2 class="text-xl font-bold text-white">User Access Management</h2>
+          <button onclick="showAddUserModal()" class="px-4 py-2 bg-green-600 hover:bg-green-700 rounded-lg text-sm font-medium">
+            <span class="material-symbols-outlined text-sm align-middle mr-1">add</span>
+            Add User
+          </button>
+        </div>
+        <div id="accessUsersTable" class="space-y-3">
+          <div class="flex justify-center py-10"><div class="loading"></div></div>
+        </div>
+      </div>
+
+      <!-- Non-Workable Tab -->
+      <div id="contentNonWorkable" class="p-6 hidden">
+        <div class="mb-4 flex justify-between items-center">
+          <h2 class="text-xl font-bold text-white">Non-Workable Accounts</h2>
+          <div class="flex gap-2">
+            <select id="nonWorkableFilter" onchange="filterNonWorkable()" class="bg-slate-700 border-slate-600 rounded-lg px-3 py-2 text-sm text-white">
+              <option value="all">All</option>
+              <option value="pending">Pending Approval</option>
+              <option value="approved">Approved</option>
+              <option value="denied">Denied</option>
+            </select>
+            <button onclick="loadNonWorkableAccounts()" class="px-4 py-2 bg-blue-600 hover:bg-blue-700 rounded-lg text-sm font-medium">
+              <span class="material-symbols-outlined text-sm align-middle">refresh</span>
+              Refresh
+            </button>
+          </div>
+        </div>
+        <div id="nonWorkableTable" class="space-y-3">
+          <div class="flex justify-center py-10"><div class="loading"></div></div>
+        </div>
+      </div>
+
+      <!-- API Management Tab -->
+      <div id="contentApi" class="p-6 hidden">
+        <h2 class="text-xl font-bold text-white mb-6">JSON Conversion</h2>
+        <div class="space-y-6">
+          <div class="bg-slate-700/50 p-6 rounded-lg border border-slate-600">
+            <h3 class="font-bold text-white mb-4 flex items-center gap-2">
+              <span class="material-symbols-outlined text-green-400">sync</span>
+              JSON Conversion
+            </h3>
+            <div class="space-y-4">
+              <div class="flex gap-2">
+                <button onclick="convertAllSheetsDev()" class="px-4 py-2 bg-purple-600 hover:bg-purple-700 rounded-lg text-sm font-medium">
+                  Convert All Sheets
+                </button>
+                <button onclick="refreshJsonDataDev()" class="px-4 py-2 bg-amber-600 hover:bg-amber-700 rounded-lg text-sm font-medium">
+                  Refresh JSON Data
+                </button>
+              </div>
+              <div id="jsonConversionStatus" class="text-sm text-gray-400"></div>
+              <div id="jsonConversionResults" class="mt-4 space-y-2"></div>
+            </div>
+          </div>
         </div>
       </div>
 
@@ -313,6 +381,14 @@ function handleLogin(e) {
     .authenticateDeveloper(username, password);
 }
 
+function closeLoginModal() {
+  window.location.href = '?';
+}
+
+function closeDeveloper() {
+  window.location.href = '?';
+}
+
 function logout() {
   if (confirm('Are you sure you want to logout?')) {
     sessionStorage.removeItem('dev_authenticated');
@@ -331,6 +407,11 @@ function loadDashboardData() {
 }
 
 function loadUsers() {
+  const container = document.getElementById('usersTable');
+  if (container) {
+    container.innerHTML = '<div class="flex justify-center py-10"><div class="loading"></div></div>';
+  }
+  
   // Mock data for testing if google.script not available
   if (typeof google === 'undefined' || !google.script || !google.script.run) {
     const mockUsers = [
@@ -346,7 +427,9 @@ function loadUsers() {
     })
     .withFailureHandler(err => {
       console.error('Error loading users:', err);
-      document.getElementById('usersTable').innerHTML = '<p class="text-red-400 text-center py-8">Error loading user data</p>';
+      if (container) {
+        container.innerHTML = '<p class="text-red-400 text-center py-8">Error loading user data: ' + err.message + '</p>';
+      }
     })
     .getUserStatistics();
 }
@@ -362,7 +445,13 @@ function displayUsers(users) {
       }
       
       // Sort by last seen (most recent first)
-      users.sort((a, b) => new Date(b.lastSeen) - new Date(a.lastSeen));
+      users.sort((a, b) => {
+        try {
+          return new Date(b.lastSeenRaw || b.lastSeen) - new Date(a.lastSeenRaw || a.lastSeen);
+        } catch(e) {
+          return 0;
+        }
+      });
       
       container.innerHTML = users.map(user => {
         const firstSeen = user.firstSeen || 'N/A';
@@ -431,6 +520,11 @@ function displayUsers(users) {
 }
 
 function loadLogs() {
+  const tbody = document.getElementById('logsTableBody');
+  if (tbody) {
+    tbody.innerHTML = '<tr><td colspan="7" class="p-10 text-center"><div class="loading mx-auto"></div></td></tr>';
+  }
+  
   // Mock data for testing if google.script not available
   if (typeof google === 'undefined' || !google.script || !google.script.run) {
     const mockLogs = [
@@ -443,20 +537,26 @@ function loadLogs() {
   
   google.script.run
     .withSuccessHandler(logs => {
-      allLogs = logs;
-      filteredLogs = logs;
-      displayLogs(logs);
+      allLogs = logs || [];
+      filteredLogs = logs || [];
+      displayLogs(filteredLogs);
       
-      const errors = logs.filter(l => l.status === 'ERROR').length;
-      document.getElementById('statErrors').textContent = errors;
-      document.getElementById('statTotalActions').textContent = logs.length;
-      if (logs.length > 0) {
-        document.getElementById('statLastActivity').textContent = logs[0].timestamp;
+      const errors = filteredLogs.filter(l => l.status === 'ERROR' || l.status === 'FAILED').length;
+      if (document.getElementById('statErrors')) {
+        document.getElementById('statErrors').textContent = errors;
+      }
+      if (document.getElementById('statTotalActions')) {
+        document.getElementById('statTotalActions').textContent = filteredLogs.length;
+      }
+      if (filteredLogs.length > 0 && document.getElementById('statLastActivity')) {
+        document.getElementById('statLastActivity').textContent = filteredLogs[0].timestamp || '-';
       }
     })
     .withFailureHandler(err => {
       console.error('Error loading logs:', err);
-      document.getElementById('logsTableBody').innerHTML = '<tr><td colspan="7" class="p-8 text-center text-red-400">Error loading logs</td></tr>';
+      if (tbody) {
+        tbody.innerHTML = '<tr><td colspan="7" class="p-8 text-center text-red-400">Error loading logs: ' + (err.message || err) + '</td></tr>';
+      }
     })
     .getActivityLogs(200);
 }
@@ -532,18 +632,36 @@ function loadStats() {
 
 function switchTab(tab) {
   // Hide all content
-  document.getElementById('contentUsers').classList.add('hidden');
-  document.getElementById('contentLogs').classList.add('hidden');
-  document.getElementById('contentSystem').classList.add('hidden');
-  
-  // Reset all tabs
-  document.getElementById('tabUsers').className = 'flex-1 px-6 py-4 font-medium text-center border-b-2 border-transparent text-gray-400 hover:text-white hover:bg-slate-700/50';
-  document.getElementById('tabLogs').className = 'flex-1 px-6 py-4 font-medium text-center border-b-2 border-transparent text-gray-400 hover:text-white hover:bg-slate-700/50';
-  document.getElementById('tabSystem').className = 'flex-1 px-6 py-4 font-medium text-center border-b-2 border-transparent text-gray-400 hover:text-white hover:bg-slate-700/50';
+  const tabs = ['users', 'logs', 'access', 'nonworkable', 'system', 'api'];
+  tabs.forEach(t => {
+    const contentEl = document.getElementById('content' + t.charAt(0).toUpperCase() + t.slice(1));
+    const tabEl = document.getElementById('tab' + t.charAt(0).toUpperCase() + t.slice(1));
+    if (contentEl) contentEl.classList.add('hidden');
+    if (tabEl) {
+      tabEl.className = 'flex-1 px-6 py-4 font-medium text-center border-b-2 border-transparent text-gray-400 hover:text-white hover:bg-slate-700/50';
+    }
+  });
   
   // Show selected
-  document.getElementById('content' + tab.charAt(0).toUpperCase() + tab.slice(1)).classList.remove('hidden');
-  document.getElementById('tab' + tab.charAt(0).toUpperCase() + tab.slice(1)).className = 'flex-1 px-6 py-4 font-medium text-center border-b-2 border-blue-600 text-blue-400 bg-slate-900/50';
+  const contentId = 'content' + tab.charAt(0).toUpperCase() + tab.slice(1);
+  const tabId = 'tab' + tab.charAt(0).toUpperCase() + tab.slice(1);
+  const contentEl = document.getElementById(contentId);
+  const tabEl = document.getElementById(tabId);
+  
+  if (contentEl) contentEl.classList.remove('hidden');
+  if (tabEl) tabEl.className = 'flex-1 px-6 py-4 font-medium text-center border-b-2 border-blue-600 text-blue-400 bg-slate-900/50';
+  
+  // Load data when switching to API tab
+  if (tab === 'api') {
+    // Tab is ready
+  }
+  
+  // Load data for specific tabs
+  if (tab === 'access') {
+    loadAccessUsers();
+  } else if (tab === 'nonworkable') {
+    loadNonWorkableAccounts();
+  }
 }
 
 function refreshAllData() {
@@ -551,6 +669,318 @@ function refreshAllData() {
   const btn = event.target.closest('button');
   btn.classList.add('animate-spin');
   setTimeout(() => btn.classList.remove('animate-spin'), 1000);
+}
+
+// Access Control Functions
+function loadAccessUsers() {
+  if (typeof google === 'undefined' || !google.script || !google.script.run) {
+    document.getElementById('accessUsersTable').innerHTML = '<p class="text-gray-400 text-center py-8">Google Script not available</p>';
+    return;
+  }
+  
+  google.script.run
+    .withSuccessHandler(users => {
+      displayAccessUsers(users);
+    })
+    .withFailureHandler(err => {
+      console.error('Error loading access users:', err);
+      document.getElementById('accessUsersTable').innerHTML = '<p class="text-red-400 text-center py-8">Error loading users</p>';
+    })
+    .getAllAccessUsers();
+}
+
+function displayAccessUsers(users) {
+  const container = document.getElementById('accessUsersTable');
+  if (users.length === 0) {
+    container.innerHTML = '<p class="text-gray-400 text-center py-8">No users found</p>';
+    return;
+  }
+  
+  container.innerHTML = users.map(user => `
+    <div class="bg-slate-700/50 p-5 rounded-lg border border-slate-600">
+      <div class="flex justify-between items-start mb-4">
+        <div class="flex-1">
+          <p class="font-bold text-white text-lg">${user.name}</p>
+          <p class="text-xs text-gray-400 mt-1">${user.email}</p>
+        </div>
+        <div class="flex gap-2">
+          <span class="px-3 py-1 bg-blue-900/30 text-blue-400 text-xs font-medium rounded-full border border-blue-800">
+            ${user.role}
+          </span>
+          <span class="px-3 py-1 ${user.status === 'Active' ? 'bg-green-900/30 text-green-400 border-green-800' : 'bg-red-900/30 text-red-400 border-red-800'} text-xs font-medium rounded-full border">
+            ${user.status}
+          </span>
+        </div>
+      </div>
+      <div class="grid grid-cols-2 gap-4 mb-4 text-xs">
+        <div>
+          <p class="text-gray-400">Version</p>
+          <p class="text-white font-medium">${user.version || 'Unknown'}</p>
+        </div>
+        <div>
+          <p class="text-gray-400">Last Access</p>
+          <p class="text-white font-medium">${user.lastAccess || 'Never'}</p>
+        </div>
+      </div>
+      <div class="flex gap-2 pt-3 border-t border-slate-600">
+        <button onclick="approveUserAccess('${user.email}')" class="px-3 py-1 bg-green-600 hover:bg-green-700 rounded text-xs">Approve</button>
+        <button onclick="blockUserAccess('${user.email}')" class="px-3 py-1 bg-red-600 hover:bg-red-700 rounded text-xs">Block</button>
+        <button onclick="deleteUserAccess('${user.email}')" class="px-3 py-1 bg-gray-600 hover:bg-gray-700 rounded text-xs">Delete</button>
+      </div>
+    </div>
+  `).join('');
+}
+
+function showAddUserModal() {
+  const email = prompt('Enter user email:');
+  if (!email) return;
+  
+  const role = prompt('Enter role (User/Lead/QC/Developer/Lead):', 'User');
+  if (!role) return;
+  
+  const tabsInput = prompt('Enter allowed tabs (comma-separated, e.g., assigned,searchResults,totalWorked):', 'assigned,searchResults');
+  const tabs = tabsInput ? tabsInput.split(',').map(t => t.trim()) : ['assigned', 'searchResults'];
+  
+  if (typeof google !== 'undefined' && google.script && google.script.run) {
+    google.script.run
+      .withSuccessHandler(result => {
+        if (result.success) {
+          alert('User added successfully');
+          loadAccessUsers();
+        } else {
+          alert('Error: ' + result.message);
+        }
+      })
+      .withFailureHandler(err => alert('Error: ' + err.message))
+      .grantAccess(email, role, tabs);
+  }
+}
+
+function approveUserAccess(email) {
+  if (!confirm(`Approve access for ${email}?`)) return;
+  if (typeof google !== 'undefined' && google.script && google.script.run) {
+    google.script.run
+      .withSuccessHandler(result => {
+        alert(result.message);
+        loadAccessUsers();
+      })
+      .withFailureHandler(err => alert('Error: ' + err.message))
+      .grantAccess(email, 'User', ['assigned', 'searchResults']);
+  }
+}
+
+function blockUserAccess(email) {
+  if (!confirm(`Block access for ${email}?`)) return;
+  if (typeof google !== 'undefined' && google.script && google.script.run) {
+    google.script.run
+      .withSuccessHandler(result => {
+        alert(result.message);
+        loadAccessUsers();
+      })
+      .withFailureHandler(err => alert('Error: ' + err.message))
+      .revokeAccess(email);
+  }
+}
+
+function deleteUserAccess(email) {
+  if (!confirm(`Delete access for ${email}? This cannot be undone.`)) return;
+  if (typeof google !== 'undefined' && google.script && google.script.run) {
+    google.script.run
+      .withSuccessHandler(result => {
+        alert(result.message);
+        loadAccessUsers();
+      })
+      .withFailureHandler(err => alert('Error: ' + err.message))
+      .revokeAccess(email);
+  }
+}
+
+// Non-Workable Functions
+function loadNonWorkableAccounts() {
+  if (typeof google === 'undefined' || !google.script || !google.script.run) {
+    document.getElementById('nonWorkableTable').innerHTML = '<p class="text-gray-400 text-center py-8">Google Script not available</p>';
+    return;
+  }
+  
+  google.script.run
+    .withSuccessHandler(accounts => {
+      displayNonWorkableAccounts(accounts);
+    })
+    .withFailureHandler(err => {
+      console.error('Error loading non-workable accounts:', err);
+      document.getElementById('nonWorkableTable').innerHTML = '<p class="text-red-400 text-center py-8">Error loading accounts</p>';
+    })
+    .getNonWorkableAccounts();
+}
+
+function displayNonWorkableAccounts(accounts) {
+  const container = document.getElementById('nonWorkableTable');
+  if (accounts.length === 0) {
+    container.innerHTML = '<p class="text-gray-400 text-center py-8">No non-workable accounts found</p>';
+    return;
+  }
+  
+  container.innerHTML = accounts.map(acc => `
+    <div class="bg-slate-700/50 p-5 rounded-lg border border-slate-600">
+      <div class="flex justify-between items-start mb-4">
+        <div class="flex-1">
+          <p class="font-bold text-white text-lg">${acc.patientName || 'N/A'}</p>
+          <p class="text-xs text-gray-400 mt-1">Visit ID: ${acc.visitId}</p>
+          <p class="text-xs text-gray-400">Client: ${acc.client || 'N/A'}</p>
+        </div>
+        <div class="text-right">
+          <p class="text-lg font-bold text-red-400">${formatCurrency(acc.balanceAmount || 0)}</p>
+        </div>
+      </div>
+      <div class="mb-4">
+        <p class="text-xs text-gray-400 mb-1">Remarks</p>
+        <p class="text-sm text-white">${acc.remarks || 'No remarks'}</p>
+      </div>
+      <div class="flex gap-2">
+        <button onclick="approveNonWorkable('${acc.visitId}')" class="px-4 py-2 bg-green-600 hover:bg-green-700 rounded text-sm">Approve</button>
+        <button onclick="denyNonWorkable('${acc.visitId}')" class="px-4 py-2 bg-red-600 hover:bg-red-700 rounded text-sm">Deny</button>
+      </div>
+    </div>
+  `).join('');
+}
+
+function approveNonWorkable(visitId) {
+  const comment = prompt('Enter approval comment:');
+  if (comment === null) return;
+  
+  if (typeof google !== 'undefined' && google.script && google.script.run) {
+    google.script.run
+      .withSuccessHandler(result => {
+        if (result.success) {
+          alert('Non-workable account approved');
+          loadNonWorkableAccounts();
+        } else {
+          alert('Error: ' + result.message);
+        }
+      })
+      .withFailureHandler(err => alert('Error: ' + err.message))
+      .approveNonWorkable(visitId, comment, Session.getActiveUser().getEmail());
+  }
+}
+
+function denyNonWorkable(visitId) {
+  const comment = prompt('Enter denial comment:');
+  if (comment === null) return;
+  
+  if (typeof google !== 'undefined' && google.script && google.script.run) {
+    google.script.run
+      .withSuccessHandler(result => {
+        if (result.success) {
+          alert('Non-workable account denied');
+          loadNonWorkableAccounts();
+        } else {
+          alert('Error: ' + result.message);
+        }
+      })
+      .withFailureHandler(err => alert('Error: ' + err.message))
+      .denyNonWorkable(visitId, comment, Session.getActiveUser().getEmail());
+  }
+}
+
+function filterNonWorkable() {
+  // Implementation would filter the displayed accounts
+  loadNonWorkableAccounts();
+}
+
+function formatCurrency(n) {
+  return '$' + parseFloat(n||0).toFixed(2).replace(/\B(?=(\d{3})+(?!\d))/g, ",");
+}
+
+// ============================================
+// JSON CONVERSION FUNCTIONS
+// ============================================
+
+function convertAllSheetsDev() {
+  updateJsonConversionStatus('Converting all sheets...', 'info');
+  document.getElementById('jsonConversionResults').innerHTML = '';
+  
+  if (typeof google !== 'undefined' && google.script && google.script.run) {
+    google.script.run
+      .withSuccessHandler(result => {
+        if (result && result.success) {
+          updateJsonConversionStatus('Conversion completed successfully!', 'success');
+          displayJsonConversionResults(result);
+        } else {
+          updateJsonConversionStatus('Conversion failed: ' + (result.error || 'Unknown error'), 'error');
+        }
+      })
+      .withFailureHandler(err => {
+        updateJsonConversionStatus('Error: ' + err.message, 'error');
+      })
+      .convertAllClientSheetsToJSON();
+  }
+}
+
+function refreshJsonDataDev() {
+  updateJsonConversionStatus('Refreshing JSON data...', 'info');
+  
+  if (typeof google !== 'undefined' && google.script && google.script.run) {
+    google.script.run
+      .withSuccessHandler(result => {
+        if (result && result.success) {
+          updateJsonConversionStatus('JSON data refreshed successfully!', 'success');
+          displayJsonConversionResults(result);
+        } else {
+          updateJsonConversionStatus('Refresh failed: ' + (result.error || 'Unknown error'), 'error');
+        }
+      })
+      .withFailureHandler(err => {
+        updateJsonConversionStatus('Error: ' + err.message, 'error');
+      })
+      .refreshAllJSONData();
+  }
+}
+
+function updateJsonConversionStatus(message, type) {
+  const statusEl = document.getElementById('jsonConversionStatus');
+  if (statusEl) {
+    statusEl.textContent = message;
+    statusEl.className = 'text-sm ' + (
+      type === 'success' ? 'text-green-400' :
+      type === 'error' ? 'text-red-400' :
+      type === 'info' ? 'text-blue-400' :
+      'text-gray-400'
+    );
+  }
+}
+
+function displayJsonConversionResults(result) {
+  const resultsEl = document.getElementById('jsonConversionResults');
+  if (!resultsEl || !result.summary) return;
+  
+  const summary = result.summary;
+  resultsEl.innerHTML = `
+    <div class="bg-slate-800 p-4 rounded-lg border border-slate-600">
+      <h4 class="font-bold text-white mb-3">Conversion Summary</h4>
+      <div class="grid grid-cols-2 gap-4 text-sm">
+        <div>
+          <span class="text-gray-400">Total Clients:</span>
+          <span class="text-white font-medium ml-2">${summary.totalClients || 0}</span>
+        </div>
+        <div>
+          <span class="text-gray-400">Successful:</span>
+          <span class="text-green-400 font-medium ml-2">${summary.successful || 0}</span>
+        </div>
+        <div>
+          <span class="text-gray-400">Failed:</span>
+          <span class="text-red-400 font-medium ml-2">${summary.failed || 0}</span>
+        </div>
+        <div>
+          <span class="text-gray-400">Total Rows:</span>
+          <span class="text-white font-medium ml-2">${summary.totalRows || 0}</span>
+        </div>
+        <div>
+          <span class="text-gray-400">Conversion Time:</span>
+          <span class="text-white font-medium ml-2">${summary.conversionTime || 0}ms</span>
+        </div>
+      </div>
+    </div>
+  `;
 }
 </script>
 
